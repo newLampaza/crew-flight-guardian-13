@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { History, Video } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface Flight {
   flight_id?: number;
@@ -22,6 +23,25 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
   onAnalyzeFlight,
   formatDate
 }) => {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const { toast } = useToast();
+  
+  const handleAnalyzeClick = async () => {
+    try {
+      setIsAnalyzing(true);
+      await onAnalyzeFlight();
+    } catch (error) {
+      console.error('Failed to analyze flight:', error);
+      toast({
+        title: 'Ошибка анализа',
+        description: 'Не удалось проанализировать запись полета',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
     <div className="p-6 border rounded-lg transition-all duration-200 border-border">
       <div className="flex items-center gap-3 mb-4">
@@ -45,12 +65,16 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
       )}
       
       <Button 
-        onClick={onAnalyzeFlight}
-        disabled={!lastFlight}
+        onClick={handleAnalyzeClick}
+        disabled={!lastFlight || isAnalyzing}
         className="w-full"
         aria-label="Анализировать последний рейс"
       >
-        {lastFlight?.video_path ? 'Проанализировать запись' : 'Анализировать рейс'}
+        {isAnalyzing 
+          ? 'Анализ...' 
+          : (lastFlight?.video_path 
+              ? 'Проанализировать запись' 
+              : 'Анализировать рейс')}
       </Button>
       
       {!lastFlight && (
