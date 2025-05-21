@@ -78,3 +78,62 @@ export const cognitiveTestsApi = {
     }
   }
 };
+
+// API для работы с анализом утомляемости по видеозаписям полетов
+export const fatigueAnalysisApi = {
+  // Получить последний полет для анализа
+  getLastFlight: async (): Promise<{ flight: any }> => {
+    try {
+      const response = await apiClient.get('/flights/last');
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при получении данных о последнем полете:', error);
+      return { flight: null };
+    }
+  },
+  
+  // Запросить анализ видеозаписи полета
+  analyzeFlight: async (flightId: number): Promise<{ status: string; analysisId?: number }> => {
+    try {
+      const response = await apiClient.post('/fatigue-analysis/start', {
+        flight_id: flightId
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при запуске анализа утомляемости:', error);
+      throw error;
+    }
+  },
+  
+  // Получить результаты анализа
+  getAnalysisResults: async (analysisId: number): Promise<any> => {
+    const response = await apiClient.get(`/fatigue-analysis/results/${analysisId}`);
+    return response.data;
+  },
+  
+  // Получить историю анализов утомляемости
+  getAnalysisHistory: async (): Promise<any[]> => {
+    try {
+      const response = await apiClient.get('/fatigue-analysis/history');
+      return response.data || [];
+    } catch (error) {
+      console.error('Ошибка при получении истории анализов:', error);
+      return [];
+    }
+  },
+  
+  // Отправить отзыв о результатах анализа
+  submitFeedback: async (analysisId: number, rating: number, comments?: string): Promise<{ status: string }> => {
+    try {
+      const response = await apiClient.post('/fatigue-analysis/feedback', {
+        analysis_id: analysisId,
+        rating,
+        comments
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Ошибка при отправке отзыва:', error);
+      throw error;
+    }
+  }
+};
