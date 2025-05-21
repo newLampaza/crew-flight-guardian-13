@@ -2,14 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { History, Video } from 'lucide-react';
-
-interface Flight {
-  flight_id?: number;
-  from_code?: string;
-  to_code?: string;
-  departure_time?: string;
-  video_path?: string;
-}
+import { Flight } from '@/types/fatigue';
 
 interface FlightAnalyzerProps {
   lastFlight: Flight | null;
@@ -32,7 +25,9 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
       {lastFlight && (
         <div className="mb-4">
           <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">{lastFlight.from_code || 'N/A'} → {lastFlight.to_code || 'N/A'}</span>
+            <span className="text-muted-foreground">
+              {lastFlight.from_code || 'N/A'} → {lastFlight.to_code || 'N/A'}
+            </span>
             {lastFlight.video_path && (
               <div className="flex items-center gap-1 text-green-500 text-xs bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded">
                 <Video className="h-3 w-3" />
