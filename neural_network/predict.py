@@ -110,14 +110,16 @@ class FatigueAnalyzer:
                 logger.warning("Empty or invalid frame received")
                 return frame
 
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Создаем копию кадра для анализа, оригинальный кадр не изменяем
+            analysis_frame = frame.copy()
+            rgb_frame = cv2.cvtColor(analysis_frame, cv2.COLOR_BGR2RGB)
             results = self.face_detector.process(rgb_frame)
             
             if results.detections:
                 self.last_face_time = time.time()
                 for detection in results.detections:
                     bbox = detection.location_data.relative_bounding_box
-                    h, w = frame.shape[:2]
+                    h, w = analysis_frame.shape[:2]
                     
                     x = int(bbox.xmin * w)
                     y = int(bbox.ymin * h)
@@ -131,24 +133,27 @@ class FatigueAnalyzer:
 
                     if width > 10 and height > 10:
                         try:
-                            face_roi = frame[y:y+height, x:x+width]
+                            face_roi = analysis_frame[y:y+height, x:x+width]
                             processed = self._preprocess_face(face_roi)
                             prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
                             self._update_buffer(prediction)
                             
-                            color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
-                            cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
-                            cv2.putText(frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
-                                      (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                            # Для визуализации можно использовать другой кадр, но возвращаем оригинальный
+                            # Это закомментированная версия отрисовки, которая не влияет на исходный кадр
+                            # color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
+                            # cv2.rectangle(analysis_frame, (x, y), (x+width, y+height), color, 2)
+                            # cv2.putText(analysis_frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
+                            #           (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                         except Exception as e:
                             logger.error(f"Ошибка обработки лица: {str(e)}")
             else:
                 if time.time() - self.last_face_time > 2:
-                    self._update_buffer(1.0)  # Предполагаем усталость, если лицо не обнаружено
+                    self._update_buffer(0.5)  # Предполагаем среднюю усталость, если лицо не обнаружено
             
         except Exception as e:
             logger.error(f"Ошибка обработки кадра: {str(e)}")
             
+        # Важно: возвращаем исходный кадр, а не модифицированный
         return frame
 
     def _preprocess_face(self, face: np.ndarray) -> np.ndarray:
@@ -162,7 +167,7 @@ class FatigueAnalyzer:
 
     def get_final_score(self) -> dict:
         if not self.buffer:
-            return {'level': 'Unknown', 'score': 0.0, 'percent': 0.0}
+            return {'level': 'Medium', 'score': 0.5, 'percent': 50.0}
             
         avg_score = np.mean(self.buffer)
         if avg_score < 0.3:
@@ -195,10 +200,13 @@ def analyze_source(source, is_video_file=False, output_file=None):
         if not cap.isOpened():
             raise ValueError("Не удалось открыть видео источник")
         
+        # Подготовим видеописатель для выходного файла, если нужно
         if output_file:
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             out = cv2.VideoWriter(output_file, fourcc, 30.0, 
-                                (int(cap.get(3)), int(cap.get(4))))
+                                (frame_width, frame_height))
         
         frame_count = 0
         max_frames = 300  # Максимум 10 секунд при 30 fps
@@ -208,15 +216,18 @@ def analyze_source(source, is_video_file=False, output_file=None):
             if not ret:
                 break
                 
-            processed = analyzer.process_frame(frame)
+            # Анализируем кадр (без его модификации)
+            # Важно: не рисуем на кадре, а только анализируем
+            analyzer.process_frame(frame)
             frame_count += 1
             
-            if output_file:
-                out.write(processed)
+            # Записываем исходный кадр без изменений
+            if output_file and 'out' in locals():
+                out.write(frame)
             
             # Показываем кадры только в режиме отладки
             if not is_video_file:
-                cv2.imshow('Analysis', processed)
+                cv2.imshow('Analysis', frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
         
@@ -226,11 +237,12 @@ def analyze_source(source, is_video_file=False, output_file=None):
         cv2.destroyAllWindows()
         
         result = analyzer.get_final_score()
+        logger.info(f"Анализ завершен: уровень={result['level']}, процент={result['percent']}")
         return result['level'], result['percent']
     except Exception as e:
         logger.error(f"Ошибка анализа видео: {str(e)}")
-        # Более безопасная обработка ошибки - возвращаем неопределенный уровень усталости
-        return "Unknown", 0
+        # В случае ошибки возвращаем средний уровень усталости
+        return "Medium", 50
 
 if __name__ == '__main__':
     import argparse
