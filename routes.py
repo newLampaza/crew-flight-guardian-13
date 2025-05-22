@@ -88,23 +88,11 @@ def serve_video(filename):
     """Обработка запросов к видеофайлам"""
     logger.info(f"Запрос видео: {filename}")
     
-    # Определяем MIME-тип на основе расширения файла
-    def get_mimetype(filename):
-        extension = filename.split('.')[-1].lower()
-        mime_types = {
-            'mp4': 'video/mp4',
-            'webm': 'video/webm',
-            'avi': 'video/x-msvideo',
-            'mov': 'video/quicktime',
-            'wmv': 'video/x-ms-wmv'
-        }
-        return mime_types.get(extension, 'video/mp4')  # По умолчанию используем video/mp4
-    
     # Проверяем наличие файла в основной директории
     video_dir = os.path.join('neural_network', 'data', 'video')
     if os.path.exists(os.path.join(video_dir, filename)):
         logger.info(f"Найден файл в основной директории: {os.path.join(video_dir, filename)}")
-        return send_from_directory(video_dir, filename, mimetype=get_mimetype(filename))
+        return send_from_directory(video_dir, filename, mimetype='video/webm')
     
     # Используем "гибкий" поиск - проверяем только имя файла без учёта пути
     for root, dirs, files in os.walk(video_dir):
@@ -112,11 +100,11 @@ def serve_video(filename):
             rel_path = os.path.relpath(root, video_dir)
             if rel_path == '.':
                 logger.info(f"Найден файл при гибком поиске: {os.path.join(video_dir, filename)}")
-                return send_from_directory(video_dir, filename, mimetype=get_mimetype(filename))
+                return send_from_directory(video_dir, filename, mimetype='video/webm')
             else:
                 subdir = os.path.join(video_dir, rel_path)
                 logger.info(f"Найден файл в поддиректории: {os.path.join(subdir, filename)}")
-                return send_from_directory(subdir, filename, mimetype=get_mimetype(filename))
+                return send_from_directory(subdir, filename, mimetype='video/webm')
     
     # Если файл не найден
     logger.error(f"Видео-файл не найден: {filename}")

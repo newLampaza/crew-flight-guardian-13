@@ -12,9 +12,56 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize face detection
+# Try to initialize face detection with fallback options
+def get_face_detection():
+    try:
+        # Standard initialization
+        mp_face_detection = mp.solutions.face_detection
+        return mp_face_detection.FaceDetection(min_detection_confidence=0.7)
+    except Exception as e:
+        logger.error(f"Error initializing standard face detection: {e}")
+        try:
+            # Attempt to locate model files in known paths
+            # In colab/some environments, it's under mediapipe/modules/...
+            detection_paths = [
+                os.path.join(os.path.dirname(mp.__file__), "modules", "face_detection", "face_detection_short_range.tflite"),
+                os.path.join(os.path.dirname(os.path.dirname(mp.__file__)), "mediapipe", "modules", "face_detection", "face_detection_short_range.tflite")
+            ]
+            
+            for path in detection_paths:
+                if os.path.exists(path):
+                    logger.info(f"Found face detection model at: {path}")
+                    mp_face_detection = mp.solutions.face_detection
+                    return mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
+            
+            # Last resort - model_selection=0 uses a shorter-range model
+            logger.info(f"Using fallback model_selection=0 for face detection")
+            mp_face_detection = mp.solutions.face_detection
+            return mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
+        except Exception as nested_e:
+            logger.error(f"Failed to initialize face detection with fallbacks: {nested_e}")
+            # Return None - will have to handle this later
+            return None
+
+# Get the face detector
 mp_face_detection = mp.solutions.face_detection
-FaceDetection = mp_face_detection.FaceDetection
+try:
+    FaceDetection = get_face_detection
+except Exception as e:
+    logger.error(f"Face detection initialization failed: {e}")
+    # Dummy class for backup
+    class DummyFaceDetection:
+        def __init__(self, min_detection_confidence=0.5):
+            self.min_detection_confidence = min_detection_confidence
+            
+        def process(self, image):
+            class DummyResult:
+                def __init__(self):
+                    self.detections = None
+                    
+            return DummyResult()
+            
+    FaceDetection = lambda: DummyFaceDetection()
 
 # Глобальный экземпляр анализатора для повторного использования
 _GLOBAL_ANALYZER = None
@@ -43,15 +90,13 @@ class FatigueAnalyzer:
         """Загружает модель и инициализирует детектор лиц"""
         try:
             self.model = tf.keras.models.load_model(self.model_path)
-            # Используем более высокий показатель уверенности для более точного определения лиц
-            self.face_detector = FaceDetection(min_detection_confidence=0.5)
+            self.face_detector = get_face_detection()
             logger.info("Модель и детектор лиц успешно загружены")
         except Exception as e:
             logger.error(f"Ошибка при загрузке ресурсов: {e}")
             raise
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
-        """Обрабатывает кадр, отрисовывая визуализацию усталости"""
         if self.model is None or self.face_detector is None:
             try:
                 self.load_resources()
@@ -65,16 +110,16 @@ class FatigueAnalyzer:
                 logger.warning("Empty or invalid frame received")
                 return frame
 
-            # Создаем копию кадра для анализа и отрисовки визуализации
-            output_frame = frame.copy()
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Создаем копию кадра для анализа, оригинальный кадр не изменяем
+            analysis_frame = frame.copy()
+            rgb_frame = cv2.cvtColor(analysis_frame, cv2.COLOR_BGR2RGB)
             results = self.face_detector.process(rgb_frame)
             
             if results.detections:
                 self.last_face_time = time.time()
                 for detection in results.detections:
                     bbox = detection.location_data.relative_bounding_box
-                    h, w = frame.shape[:2]
+                    h, w = analysis_frame.shape[:2]
                     
                     x = int(bbox.xmin * w)
                     y = int(bbox.ymin * h)
@@ -88,49 +133,28 @@ class FatigueAnalyzer:
 
                     if width > 10 and height > 10:
                         try:
-                            face_roi = frame[y:y+height, x:x+width]
+                            face_roi = analysis_frame[y:y+height, x:x+width]
                             processed = self._preprocess_face(face_roi)
                             prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
                             self._update_buffer(prediction)
                             
-                            # Определяем цвет на основе уровня усталости
-                            color = (0, 0, 255) if prediction > 0.65 else ((0, 165, 255) if prediction > 0.4 else (0, 255, 0))
-                            
-                            # Отрисовка рамки вокруг лица
-                            cv2.rectangle(output_frame, (x, y), (x+width, y+height), color, 2)
-                            
-                            # Отрисовка текущего значения усталости
-                            text = f"Fatigue: {prediction:.2f}"
-                            cv2.putText(output_frame, text, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                            
-                            # Добавляем среднее значение усталости из буфера
-                            mean_fatigue = np.mean(self.buffer)
-                            level_text = "High" if mean_fatigue > 0.65 else ("Medium" if mean_fatigue > 0.4 else "Low")
-                            mean_text = f"Avg: {mean_fatigue:.2f} ({level_text})"
-                            cv2.putText(output_frame, mean_text, (x, y+height+25), 
-                                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                            # Для визуализации можно использовать другой кадр, но возвращаем оригинальный
+                            # Это закомментированная версия отрисовки, которая не влияет на исходный кадр
+                            # color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
+                            # cv2.rectangle(analysis_frame, (x, y), (x+width, y+height), color, 2)
+                            # cv2.putText(analysis_frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
+                            #           (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                         except Exception as e:
                             logger.error(f"Ошибка обработки лица: {str(e)}")
             else:
                 if time.time() - self.last_face_time > 2:
                     self._update_buffer(0.5)  # Предполагаем среднюю усталость, если лицо не обнаружено
-                # Добавляем сообщение о том, что лицо не обнаружено
-                cv2.putText(output_frame, "No face detected", (20, 50), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            
-            # Добавляем информацию о буфере оценки
-            buffer_info = f"Buffer: {len(self.buffer)}/{self.buffer_size}"
-            cv2.putText(output_frame, buffer_info, (20, 20), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             
         except Exception as e:
             logger.error(f"Ошибка обработки кадра: {str(e)}")
-            # При ошибке добавляем сообщение об ошибке на кадр
-            cv2.putText(output_frame, f"Error: {str(e)[:30]}...", (20, 50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             
-        # Возвращаем обработанный кадр с визуализацией
-        return output_frame
+        # Важно: возвращаем исходный кадр, а не модифицированный
+        return frame
 
     def _preprocess_face(self, face: np.ndarray) -> np.ndarray:
         face = cv2.resize(face, (48, 48))
@@ -146,9 +170,9 @@ class FatigueAnalyzer:
             return {'level': 'Medium', 'score': 0.5, 'percent': 50.0}
             
         avg_score = np.mean(self.buffer)
-        if avg_score < 0.4:
+        if avg_score < 0.3:
             level = "Low"
-        elif avg_score < 0.65:
+        elif avg_score < 0.7:
             level = "Medium"
         else:
             level = "High"
@@ -176,13 +200,12 @@ def analyze_source(source, is_video_file=False, output_file=None):
         if not cap.isOpened():
             raise ValueError("Не удалось открыть видео источник")
         
-        # Подготовим видеописатель для выходного файла
+        # Подготовим видеописатель для выходного файла, если нужно
         if output_file:
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
             frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = 30.0  # Фиксированный FPS для выходного файла
-            out = cv2.VideoWriter(output_file, fourcc, fps, 
+            out = cv2.VideoWriter(output_file, fourcc, 30.0, 
                                 (frame_width, frame_height))
         
         frame_count = 0
@@ -193,17 +216,18 @@ def analyze_source(source, is_video_file=False, output_file=None):
             if not ret:
                 break
                 
-            # Анализируем кадр с отрисовкой визуализации
-            processed_frame = analyzer.process_frame(frame)
+            # Анализируем кадр (без его модификации)
+            # Важно: не рисуем на кадре, а только анализируем
+            analyzer.process_frame(frame)
             frame_count += 1
             
-            # Записываем кадр с визуализацией
+            # Записываем исходный кадр без изменений
             if output_file and 'out' in locals():
-                out.write(processed_frame)
+                out.write(frame)
             
             # Показываем кадры только в режиме отладки
             if not is_video_file:
-                cv2.imshow('Analysis', processed_frame)
+                cv2.imshow('Analysis', frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
         
