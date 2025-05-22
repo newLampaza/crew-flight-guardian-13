@@ -56,18 +56,54 @@ def ensure_database_exists():
     if not os.path.exists('database'):
         os.makedirs('database', exist_ok=True)
         
-    if not os.path.exists(db_path):
+    # Проверяем, существует ли база данных или её нужно пересоздать
+    needs_init = not os.path.exists(db_path)
+    
+    if needs_init:
         try:
             print("База данных не найдена. Создание новой базы данных...")
             # Попытка импорта скрипта инициализации
             try:
+                # Убедимся, что мы находимся в корневой папке проекта
+                current_dir = os.getcwd()
+                sys.path.append(current_dir)
+                
                 from database.init_db import init_db
                 init_db()
                 print("База данных успешно создана.")
             except ImportError:
-                print("ПРЕДУПРЕЖДЕНИЕ: Не удалось импортировать init_db. База данных может быть не инициализирована.")
+                print("Импортируем и запускаем init_db.py напрямую...")
+                # Если нет функции init_db, выполняем файл напрямую
+                db_init_path = os.path.join('database', 'init_db.py')
+                if os.path.exists(db_init_path):
+                    current_path = os.getcwd()
+                    db_dir = os.path.join(current_path, 'database')
+                    subprocess.run([sys.executable, db_init_path], cwd=db_dir, check=True)
+                    print("База данных успешно создана.")
+                else:
+                    print("ОШИБКА: Файл init_db.py не найден")
+            
+            # Проверяем наличие основных таблиц после создания
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            tables = cursor.execute("SELECT name FROM sqlite_master WHERE type='table';").fetchall()
+            tables = [table[0] for table in tables]
+            conn.close()
+            
+            required_tables = ['Users', 'Employees', 'FatigueVideos', 'FatigueAnalysis']
+            missing_tables = [table for table in required_tables if table not in tables]
+            
+            if missing_tables:
+                print(f"ПРЕДУПРЕЖДЕНИЕ: После инициализации отсутствуют таблицы: {', '.join(missing_tables)}")
+                print("Возможно, потребуется обновить схему базы данных.")
+            else:
+                print("Все необходимые таблицы успешно созданы.")
+                
         except Exception as e:
             print(f"ОШИБКА при создании базы данных: {e}")
+            import traceback
+            traceback.print_exc()
 
 def open_browser():
     time.sleep(2)  # Wait for servers to start
@@ -112,3 +148,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nЗавершение работы серверов...")
         sys.exit(0)
+

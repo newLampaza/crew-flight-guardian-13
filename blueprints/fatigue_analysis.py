@@ -1,4 +1,3 @@
-
 from flask import Blueprint, jsonify, request, send_from_directory
 import os
 import sqlite3
@@ -32,32 +31,67 @@ def allowed_file(filename):
 def save_video(file, employee_id):
     """Сохраняет видео и возвращает путь к сохраненному файлу"""
     if file and allowed_file(file.filename):
-        # Генерируем уникальное имя файла
-        video_id = str(uuid.uuid4())
-        orig_filename = file.filename
-        extension = orig_filename.rsplit('.', 1)[1].lower()
-        new_filename = f"video_{video_id}.{extension}"
-        video_path = os.path.join(VIDEO_DIR, new_filename)
-        
-        # Сохраняем файл
-        file.save(video_path)
-        
-        # Обновляем базу данных
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        now = datetime.now().isoformat()
-        
-        cursor.execute(
-            '''INSERT INTO FatigueVideos 
-               (employee_id, video_path, upload_date, original_filename) 
-               VALUES (?, ?, ?, ?)''',
-            (employee_id, video_path, now, orig_filename)
-        )
-        conn.commit()
-        video_db_id = cursor.lastrowid
-        conn.close()
-        
-        return video_path, video_db_id
+        try:
+            # Проверяем наличие таблицы FatigueVideos
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Проверяем существование таблицы
+            table_exists = cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='FatigueVideos';"
+            ).fetchone()
+            
+            if not table_exists:
+                # Создаем таблицу, если её нет
+                cursor.execute('''
+                CREATE TABLE IF NOT EXISTS FatigueVideos (
+                    video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    employee_id INTEGER NOT NULL,
+                    video_path TEXT NOT NULL,
+                    upload_date TEXT NOT NULL,
+                    original_filename TEXT,
+                    resolution TEXT,
+                    fps REAL,
+                    duration INTEGER,
+                    FOREIGN KEY (employee_id) REFERENCES Employees (employee_id)
+                )
+                ''')
+                conn.commit()
+                logger.info("FatigueVideos table created")
+            
+            conn.close()
+            
+            # Генерируем уникальное имя файла
+            video_id = str(uuid.uuid4())
+            orig_filename = file.filename
+            extension = orig_filename.rsplit('.', 1)[1].lower()
+            new_filename = f"video_{video_id}.{extension}"
+            video_path = os.path.join(VIDEO_DIR, new_filename)
+            
+            # Сохраняем файл
+            file.save(video_path)
+            logger.info(f"Video saved to {video_path}")
+            
+            # Обновляем базу данных
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+            
+            cursor.execute(
+                '''INSERT INTO FatigueVideos 
+                   (employee_id, video_path, upload_date, original_filename) 
+                   VALUES (?, ?, ?, ?)''',
+                (employee_id, video_path, now, orig_filename)
+            )
+            conn.commit()
+            video_db_id = cursor.lastrowid
+            conn.close()
+            
+            return video_path, video_db_id
+        except Exception as e:
+            logger.error(f"Error saving video: {str(e)}")
+            logger.error(traceback.format_exc())
+            raise e
     return None, None
 
 # Import token_required from auth blueprint
@@ -81,6 +115,7 @@ def analyze_fatigue():
             if file.filename == '':
                 return jsonify({'error': 'Не выбран файл'}), 400
             
+            logger.info(f"Attempting to save video for user {current_user['employee_id']}")
             video_path, video_id = save_video(file, current_user['employee_id'])
             if not video_path:
                 return jsonify({'error': 'Недопустимый формат файла'}), 400
@@ -91,6 +126,7 @@ def analyze_fatigue():
             try:
                 fatigue_level, score_percent = analyze_source(video_path, is_video_file=True)
                 score = score_percent / 100.0  # Конвертируем процент в число от 0 до 1
+                logger.info(f"Neural network analysis complete: level={fatigue_level}, score={score}")
             except Exception as e:
                 logger.error(f"Neural network analysis failed: {str(e)}")
                 logger.error(traceback.format_exc())
@@ -100,33 +136,70 @@ def analyze_fatigue():
                 level_idx = random.choices([0, 1, 2], weights=[0.3, 0.4, 0.3], k=1)[0]
                 fatigue_level = level_map[level_idx]
                 score = random.uniform(0.2, 0.8)
+                logger.info(f"Using fallback data: level={fatigue_level}, score={score}")
                 
             # Сохраняем результаты анализа в базу данных
             conn = get_db_connection()
             now = datetime.now().isoformat()
             
+            # Проверяем существование таблицы FatigueAnalysis
+            cursor = conn.cursor()
+            table_exists = cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='FatigueAnalysis';"
+            ).fetchone()
+            
+            if not table_exists:
+                # Создаем таблицу, если её нет
+                cursor.execute('''
+                CREATE TABLE IF NOT EXISTS FatigueAnalysis (
+                    analysis_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    employee_id INTEGER,
+                    flight_id INTEGER,
+                    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High')),
+                    neural_network_score REAL,
+                    feedback_score REAL,
+                    analysis_date TEXT,
+                    video_path TEXT,
+                    notes TEXT,
+                    resolution TEXT,
+                    fps REAL,
+                    FOREIGN KEY (employee_id) REFERENCES Employees (employee_id),
+                    FOREIGN KEY (flight_id) REFERENCES Flights (flight_id)
+                )
+                ''')
+                conn.commit()
+                logger.info("FatigueAnalysis table created")
+            
             # Получаем информацию о видео
             cap = cv2.VideoCapture(video_path)
+            resolution = "Unknown"
+            fps = 0
+            
             if cap.isOpened():
                 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 fps = cap.get(cv2.CAP_PROP_FPS)
                 resolution = f"{width}x{height}"
                 cap.release()
-            else:
-                resolution = "Unknown"
-                fps = 0
+                logger.info(f"Video info: resolution={resolution}, fps={fps}")
             
-            cursor = conn.cursor()
-            cursor.execute(
-                '''INSERT INTO FatigueAnalysis 
-                   (employee_id, video_path, analysis_date, fatigue_level, neural_network_score, resolution, fps) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                (current_user['employee_id'], video_path, now, fatigue_level, score, resolution, fps)
-            )
-            conn.commit()
-            analysis_id = cursor.lastrowid
-            conn.close()
+            try:
+                cursor.execute(
+                    '''INSERT INTO FatigueAnalysis 
+                       (employee_id, video_path, analysis_date, fatigue_level, neural_network_score, resolution, fps) 
+                       VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                    (current_user['employee_id'], video_path, now, fatigue_level, score, resolution, fps)
+                )
+                conn.commit()
+                analysis_id = cursor.lastrowid
+            except sqlite3.Error as e:
+                logger.error(f"Database error while saving analysis: {str(e)}")
+                # Выводим структуру таблицы для отладки
+                cols = cursor.execute("PRAGMA table_info(FatigueAnalysis)").fetchall()
+                logger.debug(f"FatigueAnalysis columns: {cols}")
+                raise
+            finally:
+                conn.close()
             
             # Подготавливаем относительный путь к видео для клиента
             relative_path = os.path.join('videos', os.path.basename(video_path))

@@ -82,18 +82,35 @@ CREATE TABLE IF NOT EXISTS Flights (
 )
 ''')
 
+# Add missing FatigueVideos table
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS FatigueVideos (
+    video_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL,
+    video_path TEXT NOT NULL,
+    upload_date TEXT NOT NULL,
+    original_filename TEXT,
+    resolution TEXT,
+    fps REAL,
+    duration INTEGER,
+    FOREIGN KEY (employee_id) REFERENCES Employees (employee_id)
+)
+''')
+
 # Fatigue Analysis table with detailed metrics
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS FatigueAnalysis (
     analysis_id INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id INTEGER,
     flight_id INTEGER,
-    fatigue_level TEXT CHECK(fatigue_level IN ('low', 'medium', 'high')),
+    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High')),
     neural_network_score REAL,
     feedback_score REAL,
     analysis_date TEXT,
     video_path TEXT,
     notes TEXT,
+    resolution TEXT,
+    fps REAL,
     FOREIGN KEY (employee_id) REFERENCES Employees (employee_id),
     FOREIGN KEY (flight_id) REFERENCES Flights (flight_id)
 )
@@ -196,3 +213,4 @@ conn.commit()
 conn.close()
 
 print("Database schema successfully initialized!")
+
