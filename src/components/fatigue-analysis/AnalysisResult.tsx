@@ -3,9 +3,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { StarRating } from './StarRating';
 import { cn } from '@/lib/utils';
-import { FileVideo, Video, RefreshCcw, AlertCircle } from 'lucide-react';
+import { FileVideo, Video, RefreshCcw, AlertCircle, User } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface AnalysisResultProps {
   analysisResult: {
@@ -16,6 +16,11 @@ interface AnalysisResultProps {
     video_path?: string;
     from_code?: string;
     to_code?: string;
+    error?: string;
+    face_detection_ratio?: number;
+    frames_analyzed?: number;
+    resolution?: string;
+    fps?: number;
   };
   feedbackScore: number;
   setFeedbackScore: (score: number) => void;
@@ -39,6 +44,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
       case 'high': return 'Высокий';
       case 'medium': return 'Средний';
       case 'low': return 'Низкий';
+      case 'unknown': return 'Не определен';
       default: return 'Нет данных';
     }
   };
@@ -52,22 +58,22 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   };
 
-  // Форматирование URL для видео с отрисованными результатами анализа
+  // Format URL for video with rendered analysis results
   const formatVideoUrl = (path?: string) => {
     if (!path) return '';
     
-    // Заменяем обратные слэши на прямые
+    // Replace backslashes with forward slashes
     const normalizedPath = path.replace(/\\/g, '/');
     
-    // Проверяем, является ли путь абсолютным URL
+    // Check if path is an absolute URL
     if (normalizedPath.startsWith('http')) {
       return normalizedPath;
     }
     
-    // Используем только имя файла для упрощения доступа к видео через API
+    // Use only the file name for simplified access via API
     const fileName = normalizedPath.split('/').pop();
     
-    // Формируем полный URL к API эндпоинту
+    // Form full URL to API endpoint
     const apiBase = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
     return `${apiBase}/videos/${fileName}`;
   };
@@ -80,11 +86,11 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   };
 
-  // Загрузка видео при обновлении analysisResult
+  // Load video when analysisResult updates
   useEffect(() => {
     if (analysisResult?.video_path && videoRef.current) {
       const videoUrl = formatVideoUrl(analysisResult.video_path);
-      console.log('Загрузка видео с визуализацией:', videoUrl);
+      console.log('Loading visualization video:', videoUrl);
       
       videoRef.current.src = videoUrl;
       videoRef.current.load();
@@ -93,7 +99,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   }, [analysisResult?.video_path]);
 
-  // Показываем уведомление о пути к видеофайлу
+  // Show toast notification about video path
   useEffect(() => {
     if (analysisResult?.video_path) {
       toast({
@@ -120,8 +126,33 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   }, [analysisResult?.video_path]);
 
+  const hasFaceDetectionError = () => {
+    if (!analysisResult) return false;
+    
+    if (analysisResult.error && analysisResult.error.toLowerCase().includes('face')) {
+      return true;
+    }
+    
+    if (analysisResult.face_detection_ratio === 0) {
+      return true;
+    }
+    
+    return (analysisResult.fatigue_level === 'Unknown' && 
+           analysisResult.neural_network_score === 0);
+  };
+
   return (
     <div className="space-y-4">
+      {hasFaceDetectionError() && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Ошибка распознавания лица</AlertTitle>
+          <AlertDescription>
+            {analysisResult.error || 'Лицо не обнаружено в видео. Убедитесь, что лицо хорошо освещено и находится в кадре.'}
+          </AlertDescription>
+        </Alert>
+      )}
+      
       <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
         <span className="text-muted-foreground">ID анализа:</span>
         <strong>#{analysisResult.analysis_id || 'неизвестно'}</strong>
@@ -134,55 +165,63 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
         </strong>
       </div>
 
-      <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-        <span className="text-muted-foreground">Точность модели:</span>
-        <div className="relative w-20 h-20">
-          <svg className="w-full h-full transform -rotate-90">
-            <circle
-              cx="40"
-              cy="40"
-              r="36"
-              stroke="currentColor"
-              strokeWidth="8"
-              fill="none"
-              className="text-muted/20"
-            />
-            <circle
-              cx="40"
-              cy="40"
-              r="36"
-              stroke="currentColor"
-              strokeWidth="8"
-              fill="none"
-              strokeDasharray={226.1946}
-              strokeDashoffset={226.1946 - (226.1946 * (analysisResult.neural_network_score || 0))}
-              className={cn(
-                'transition-all duration-1000',
-                (analysisResult.neural_network_score || 0) > 0.65 ? 'text-rose-500' : 
-                (analysisResult.neural_network_score || 0) > 0.4 ? 'text-amber-500' : 
-                'text-emerald-500'
-              )}
-            />
-          </svg>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-            <span className="text-lg font-bold">
-              {Math.round((analysisResult.neural_network_score || 0) * 100)}%
-            </span>
+      {!hasFaceDetectionError() && (
+        <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+          <span className="text-muted-foreground">Точность модели:</span>
+          <div className="relative w-20 h-20">
+            <svg className="w-full h-full transform -rotate-90">
+              <circle
+                cx="40"
+                cy="40"
+                r="36"
+                stroke="currentColor"
+                strokeWidth="8"
+                fill="none"
+                className="text-muted/20"
+              />
+              <circle
+                cx="40"
+                cy="40"
+                r="36"
+                stroke="currentColor"
+                strokeWidth="8"
+                fill="none"
+                strokeDasharray={226.1946}
+                strokeDashoffset={226.1946 - (226.1946 * (analysisResult.neural_network_score || 0))}
+                className={cn(
+                  'transition-all duration-1000',
+                  (analysisResult.neural_network_score || 0) > 0.65 ? 'text-rose-500' : 
+                  (analysisResult.neural_network_score || 0) > 0.4 ? 'text-amber-500' : 
+                  'text-emerald-500'
+                )}
+              />
+            </svg>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+              <span className="text-lg font-bold">
+                {Math.round((analysisResult.neural_network_score || 0) * 100)}%
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
-        <span className="text-muted-foreground">Оценка системы:</span>
-        <StarRating currentRating={feedbackScore} onRatingChange={setFeedbackScore} />
-      </div>
+      {!hasFaceDetectionError() && (
+        <div className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+          <span className="text-muted-foreground">Оценка системы:</span>
+          <StarRating currentRating={feedbackScore} onRatingChange={setFeedbackScore} />
+        </div>
+      )}
 
       {analysisResult.video_path && (
         <div className="mt-4 space-y-2">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Video className="h-5 w-5 text-primary" />
-              <h4 className="text-sm font-medium">Визуализация анализа нейросети:</h4>
+              <h4 className="text-sm font-medium">
+                {hasFaceDetectionError() 
+                  ? "Видео (лицо не обнаружено)" 
+                  : "Визуализация анализа нейросети:"}
+              </h4>
             </div>
             <Button 
               variant="outline" 
@@ -224,8 +263,21 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             
             <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
               <FileVideo className="h-3 w-3" />
-              <span>Анализ нейросети</span>
+              <span>{hasFaceDetectionError() ? "Оригинальное видео" : "Анализ нейросети"}</span>
             </div>
+
+            {hasFaceDetectionError() && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-black/50 px-6 py-4 rounded-lg text-white text-center max-w-md">
+                  <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <h3 className="text-xl font-bold mb-2">Лицо не обнаружено</h3>
+                  <p className="text-sm">
+                    Не удалось обнаружить лицо в кадре. Убедитесь, что лицо хорошо освещено 
+                    и находится в пределах кадра.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           
           {videoError && (
@@ -237,9 +289,33 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             </Alert>
           )}
           
-          <div className="bg-muted/20 p-3 rounded-md border border-dashed text-xs text-muted-foreground">
-            <strong className="block mb-1">Расположение видео:</strong>
-            <code className="break-all">{analysisResult.video_path}</code>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+            <div className="bg-muted/20 p-3 rounded-md border border-dashed text-xs text-muted-foreground">
+              <strong className="block mb-1">Расположение видео:</strong>
+              <code className="break-all">{analysisResult.video_path}</code>
+            </div>
+
+            <div className="bg-muted/20 p-3 rounded-md border border-dashed text-xs text-muted-foreground">
+              <strong className="block mb-1">Технические детали:</strong>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div>Разрешение:</div>
+                <div>{analysisResult.resolution || 'неизвестно'}</div>
+                <div>FPS:</div>
+                <div>{analysisResult.fps || 'неизвестно'}</div>
+                {analysisResult.face_detection_ratio !== undefined && (
+                  <>
+                    <div>Обнаружение лица:</div>
+                    <div>{Math.round(analysisResult.face_detection_ratio * 100)}%</div>
+                  </>
+                )}
+                {analysisResult.frames_analyzed !== undefined && (
+                  <>
+                    <div>Проанализировано кадров:</div>
+                    <div>{analysisResult.frames_analyzed}</div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -248,9 +324,11 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
         <Button variant="outline" onClick={onClose}>
           Закрыть
         </Button>
-        <Button onClick={onSubmitFeedback}>
-          Отправить оценку
-        </Button>
+        {!hasFaceDetectionError() && (
+          <Button onClick={onSubmitFeedback} disabled={hasFaceDetectionError()}>
+            Отправить оценку
+          </Button>
+        )}
       </div>
     </div>
   );
