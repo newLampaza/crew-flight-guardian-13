@@ -15,6 +15,19 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def entity_exists(conn, entity_type, entity_id):
+    """Проверяет существование сущности в базе данных"""
+    if entity_type == 'flight':
+        result = conn.execute('SELECT 1 FROM Flights WHERE flight_id = ?', (entity_id,)).fetchone()
+    elif entity_type == 'cognitive_test':
+        result = conn.execute('SELECT 1 FROM CognitiveTests WHERE test_id = ?', (entity_id,)).fetchone()
+    elif entity_type == 'fatigue_analysis':
+        result = conn.execute('SELECT 1 FROM FatigueAnalysis WHERE analysis_id = ?', (entity_id,)).fetchone()
+    else:
+        # Неизвестный тип сущности
+        return False
+    return result is not None
+
 # Import token_required from auth blueprint
 def get_token_required():
     from blueprints.auth import get_token_required
@@ -110,31 +123,13 @@ def handle_feedback():
 
                 conn = get_db_connection()
                 
-                # Check if entity exists
-                entity_exists = False
-                if entity_type in ['flight', 'cognitive_test', 'fatigue_analysis']:
-                    table_name = {
-                        'flight': 'Flights',
-                        'cognitive_test': 'CognitiveTests',
-                        'fatigue_analysis': 'FatigueAnalysis'
-                    }[entity_type]
-                    id_field = {
-                        'flight': 'flight_id',
-                        'cognitive_test': 'test_id',
-                        'fatigue_analysis': 'analysis_id'
-                    }[entity_type]
-                    
-                    entity_exists = conn.execute(f'SELECT 1 FROM {table_name} WHERE {id_field} = ?', 
-                                            (entity_id,)).fetchone() is not None
-                
-                # Для тестирования разрешим любые entity_id
-                entity_exists = True
-                
-                if not entity_exists:
+                # Проверяем существование сущности
+                if not entity_exists(conn, entity_type, entity_id):
                     logger.warning(f"Entity not found: {entity_type} with id {entity_id}")
+                    conn.close()
                     return jsonify({'error': f'{entity_type} not found'}), 404
 
-                # Check for existing feedback
+                # Проверка на существующий отзыв
                 existing = conn.execute('''
                     SELECT 1 FROM Feedback 
                     WHERE employee_id = ? 
@@ -148,9 +143,10 @@ def handle_feedback():
 
                 if existing:
                     logger.info(f"Feedback already exists for {entity_type} #{entity_id}")
+                    conn.close()
                     return jsonify({'error': 'Feedback already exists'}), 409
 
-                # Insert new feedback
+                # Добавляем новый отзыв
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT INTO Feedback (
@@ -168,6 +164,7 @@ def handle_feedback():
                 conn.commit()
                 feedback_id = cursor.lastrowid
                 logger.info(f"Feedback saved with ID: {feedback_id}")
+                conn.close()
                 
                 return jsonify({
                     'id': feedback_id,

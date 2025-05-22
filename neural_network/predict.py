@@ -1,58 +1,96 @@
+
 import cv2
 import numpy as np
 import tensorflow as tf
 import mediapipe as mp
 import time
+import os
 from pathlib import Path
 
 mp_face_detection = mp.solutions.face_detection
 FaceDetection = mp_face_detection.FaceDetection
 
+# Глобальный экземпляр анализатора для повторного использования
+_GLOBAL_ANALYZER = None
+
+def get_analyzer():
+    """Возвращает глобальный экземпляр анализатора, создавая его при необходимости"""
+    global _GLOBAL_ANALYZER
+    if _GLOBAL_ANALYZER is None:
+        model_path = os.path.join('neural_network', 'data', 'models', 'fatigue_model.keras')
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Модель не найдена по пути: {model_path}")
+        _GLOBAL_ANALYZER = FatigueAnalyzer(model_path)
+    return _GLOBAL_ANALYZER
+
 class FatigueAnalyzer:
     def __init__(self, model_path: str, buffer_size: int = 15):
-        self.model = tf.keras.models.load_model(model_path)
+        self.model = None
+        self.model_path = model_path
         self.buffer = []
         self.buffer_size = buffer_size
-        self.face_detector = FaceDetection(min_detection_confidence=0.7)
+        self.face_detector = None
         self.last_face_time = time.time()
+        self.load_resources()
+    
+    def load_resources(self):
+        """Загружает модель и инициализирует детектор лиц"""
+        try:
+            self.model = tf.keras.models.load_model(self.model_path)
+            self.face_detector = FaceDetection(min_detection_confidence=0.7)
+            print("Модель и детектор лиц успешно загружены")
+        except Exception as e:
+            print(f"Ошибка при загрузке ресурсов: {e}")
+            raise
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.face_detector.process(rgb_frame)
+        if self.model is None or self.face_detector is None:
+            try:
+                self.load_resources()
+            except Exception as e:
+                print(f"Не удалось загрузить модель: {e}")
+                return frame
         
-        if results.detections:
-            self.last_face_time = time.time()
-            for detection in results.detections:
-                bbox = detection.location_data.relative_bounding_box
-                h, w = frame.shape[:2]
-                
-                x = int(bbox.xmin * w)
-                y = int(bbox.ymin * h)
-                width = int(bbox.width * w)
-                height = int(bbox.height * h)
-                
-                x = max(0, x)
-                y = max(0, y)
-                width = min(w - x, width)
-                height = min(h - y, height)
+        try:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.face_detector.process(rgb_frame)
+            
+            if results.detections:
+                self.last_face_time = time.time()
+                for detection in results.detections:
+                    bbox = detection.location_data.relative_bounding_box
+                    h, w = frame.shape[:2]
+                    
+                    x = int(bbox.xmin * w)
+                    y = int(bbox.ymin * h)
+                    width = int(bbox.width * w)
+                    height = int(bbox.height * h)
+                    
+                    x = max(0, x)
+                    y = max(0, y)
+                    width = min(w - x, width)
+                    height = min(h - y, height)
 
-                if width > 10 and height > 10:
-                    try:
-                        face_roi = frame[y:y+height, x:x+width]
-                        processed = self._preprocess_face(face_roi)
-                        prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
-                        self._update_buffer(prediction)
-                        
-                        color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
-                        cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
-                        cv2.putText(frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
-                                   (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                    except Exception as e:
-                        print(f"Processing error: {str(e)}")
-        else:
-            if time.time() - self.last_face_time > 2:
-                self.buffer.append(1.0)
-        
+                    if width > 10 and height > 10:
+                        try:
+                            face_roi = frame[y:y+height, x:x+width]
+                            processed = self._preprocess_face(face_roi)
+                            prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
+                            self._update_buffer(prediction)
+                            
+                            color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
+                            cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
+                            cv2.putText(frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
+                                      (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                        except Exception as e:
+                            print(f"Ошибка обработки лица: {str(e)}")
+            else:
+                if time.time() - self.last_face_time > 2:
+                    self._update_buffer(1.0)  # Предполагаем усталость, если лицо не обнаружено
+            
+        except Exception as e:
+            print(f"Ошибка обработки кадра: {str(e)}")
+            
         return frame
 
     def _preprocess_face(self, face: np.ndarray) -> np.ndarray:
@@ -81,40 +119,60 @@ class FatigueAnalyzer:
             'score': round(avg_score, 2),
             'percent': round(avg_score * 100, 1)
         }
+    
+    def reset_buffer(self):
+        """Сбрасывает буфер для нового анализа"""
+        self.buffer = []
 
 def analyze_source(source, is_video_file=False, output_file=None):
-    analyzer = FatigueAnalyzer('neural_network/data/models/fatigue_model.keras')
-    
-    cap = cv2.VideoCapture(source if is_video_file else 0)
-    if not cap.isOpened():
-        raise ValueError("Не удалось открыть видео источник")
-    
-    if output_file:
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out = cv2.VideoWriter(output_file, fourcc, 30.0, 
-                            (int(cap.get(3)), int(cap.get(4))))
-    
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-            
-        processed = analyzer.process_frame(frame)
+    try:
+        # Используем общий анализатор
+        analyzer = get_analyzer()
+        analyzer.reset_buffer()
+        
+        if is_video_file and not os.path.exists(source):
+            raise FileNotFoundError(f"Видеофайл не найден: {source}")
+        
+        cap = cv2.VideoCapture(source if is_video_file else 0)
+        if not cap.isOpened():
+            raise ValueError("Не удалось открыть видео источник")
         
         if output_file:
-            out.write(processed)
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            out = cv2.VideoWriter(output_file, fourcc, 30.0, 
+                                (int(cap.get(3)), int(cap.get(4))))
         
-        cv2.imshow('Analysis', processed)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    
-    cap.release()
-    if output_file:
-        out.release()
-    cv2.destroyAllWindows()
-    
-    result = analyzer.get_final_score()
-    return result['level'], result['percent']
+        frame_count = 0
+        max_frames = 300  # Максимум 10 секунд при 30 fps
+        
+        while cap.isOpened() and frame_count < max_frames:
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            processed = analyzer.process_frame(frame)
+            frame_count += 1
+            
+            if output_file:
+                out.write(processed)
+            
+            # Показываем кадры только в режиме отладки
+            if not is_video_file:
+                cv2.imshow('Analysis', processed)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+        
+        cap.release()
+        if output_file and 'out' in locals():
+            out.release()
+        cv2.destroyAllWindows()
+        
+        result = analyzer.get_final_score()
+        return result['level'], result['percent']
+    except Exception as e:
+        print(f"Ошибка анализа видео: {str(e)}")
+        # Более безопасная обработка ошибки - возвращаем неопределенный уровень усталости
+        return "Unknown", 0
 
 if __name__ == '__main__':
     import argparse
