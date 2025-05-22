@@ -100,6 +100,24 @@ def get_token_required():
     from blueprints.auth import get_token_required
     return get_token_required()
 
+# Функция для форматирования пути к видео для клиента
+def format_video_path_for_client(video_path):
+    """Форматирует путь к видео для отправки клиенту"""
+    if not video_path:
+        return None
+        
+    # Приводим слэши к единому виду (всегда прямые)
+    normalized_path = video_path.replace('\\', '/')
+    
+    # Возвращаем только часть пути после neural_network/data/
+    if 'neural_network/data/' in normalized_path:
+        return normalized_path
+    
+    # Если мы сохраняем в neural_network/data/video/, 
+    # то возвращаем путь относительно этой директории
+    basename = os.path.basename(normalized_path)
+    return f"neural_network/data/video/{basename}"
+
 # Routes
 @fatigue_bp.route('/fatigue/analyze', methods=['POST'])
 def analyze_fatigue():
@@ -207,17 +225,17 @@ def analyze_fatigue():
             finally:
                 conn.close()
             
-            # Подготавливаем относительный путь к видео для клиента
-            relative_path = os.path.join('videos', os.path.basename(video_path))
+            # Используем новую функцию для форматирования пути
+            client_video_path = format_video_path_for_client(video_path)
             
-            logger.info(f"Analysis complete. Level: {fatigue_level}, Score: {score}")
+            logger.info(f"Analysis complete. Level: {fatigue_level}, Score: {score}, Path: {client_video_path}")
             
             return jsonify({
                 'analysis_id': analysis_id,
                 'fatigue_level': fatigue_level,
                 'neural_network_score': score,
                 'analysis_date': now,
-                'video_path': relative_path,
+                'video_path': client_video_path,
                 'resolution': resolution,
                 'fps': fps
             })
@@ -261,12 +279,12 @@ def save_recording():
                 resolution = f"{width}x{height}"
                 cap.release()
             
-            # Подготавливаем относительный путь к видео для клиента
-            relative_path = os.path.join('videos', os.path.basename(video_path))
+            # Используем новую функцию для форматирования пути
+            client_video_path = format_video_path_for_client(video_path)
             
             return jsonify({
                 'video_id': video_id,
-                'video_path': relative_path,
+                'video_path': client_video_path,
                 'upload_date': datetime.now().isoformat(),
                 'resolution': resolution,
                 'fps': fps,
@@ -415,8 +433,8 @@ def analyze_flight():
             analysis_id = cursor.lastrowid
             conn.close()
             
-            # Подготавливаем относительный путь к видео для клиента
-            relative_path = os.path.join('videos', os.path.basename(video_path)) if video_path else None
+            # Используем новую функцию для форматирования пути
+            client_video_path = format_video_path_for_client(video_path)
             
             return jsonify({
                 'analysis_id': analysis_id,
@@ -425,7 +443,7 @@ def analyze_flight():
                 'analysis_date': now,
                 'from_code': flight['from_code'] if 'from_code' in flight else None,
                 'to_code': flight['to_code'] if 'to_code' in flight else None,
-                'video_path': relative_path
+                'video_path': client_video_path
             })
         except Exception as e:
             logger.error(f"Error analyzing flight: {str(e)}")
@@ -461,7 +479,15 @@ def get_fatigue_history():
                 ORDER BY fa.analysis_date DESC
             ''', (current_user['employee_id'],)).fetchall()
             
-            return jsonify([dict(row) for row in history])
+            results = []
+            for row in history:
+                row_dict = dict(row)
+                # Форматируем путь к видео
+                if row_dict.get('video_path'):
+                    row_dict['video_path'] = format_video_path_for_client(row_dict['video_path'])
+                results.append(row_dict)
+                
+            return jsonify(results)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
         finally:
@@ -549,8 +575,13 @@ def get_analysis(analysis_id):
             
             if not analysis:
                 return jsonify({'error': 'Analysis not found'}), 404
+            
+            result = dict(analysis)
+            # Форматируем путь к видео
+            if result.get('video_path'):
+                result['video_path'] = format_video_path_for_client(result['video_path'])
                 
-            return jsonify(dict(analysis))
+            return jsonify(result)
             
         except Exception as e:
             logger.error(f"Error getting analysis: {str(e)}")
@@ -563,11 +594,36 @@ def get_analysis(analysis_id):
 @fatigue_bp.route('/videos/<path:filename>', methods=['GET'])
 def get_video(filename):
     try:
-        return send_from_directory(
-            VIDEO_DIR,
-            filename,
-            mimetype='video/mp4',
-            as_attachment=False
-        )
-    except FileNotFoundError:
-        return jsonify({'error': 'Video not found'}), 404
+        # Проверяем, есть ли файл в директории видео
+        if os.path.exists(os.path.join(VIDEO_DIR, filename)):
+            return send_from_directory(
+                VIDEO_DIR,
+                filename,
+                mimetype='video/mp4',
+                as_attachment=False
+            )
+        else:
+            logger.error(f"Video file not found: {filename}")
+            return jsonify({'error': 'Video not found'}), 404
+    except Exception as e:
+        logger.error(f"Error serving video: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@fatigue_bp.route('/neural_network/data/video/<path:filename>', methods=['GET'])
+def get_neural_video(filename):
+    """Обработчик для доступа к видео по новым путям"""
+    try:
+        # Проверяем, есть ли файл в директории видео
+        if os.path.exists(os.path.join(VIDEO_DIR, filename)):
+            return send_from_directory(
+                VIDEO_DIR,
+                filename,
+                mimetype='video/mp4',
+                as_attachment=False
+            )
+        else:
+            logger.error(f"Neural network video file not found: {filename}")
+            return jsonify({'error': 'Video not found'}), 404
+    except Exception as e:
+        logger.error(f"Error serving neural network video: {str(e)}")
+        return jsonify({'error': str(e)}), 500

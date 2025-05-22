@@ -48,6 +48,34 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   };
 
+  // Функция для форматирования URL видео для корректного отображения
+  const formatVideoUrl = (path?: string) => {
+    if (!path) return '';
+    
+    // Заменяем обратные слэши на прямые
+    const normalizedPath = path.replace(/\\/g, '/');
+    
+    // Проверяем, является ли путь абсолютным URL
+    if (normalizedPath.startsWith('http')) {
+      return normalizedPath;
+    }
+    
+    // Формируем полный URL к API эндпоинту
+    const apiBase = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
+    
+    // Проверяем начинается ли путь с videos/
+    if (normalizedPath.startsWith('videos/')) {
+      return `${apiBase}/${normalizedPath}`;
+    }
+    
+    // Проверяем начинается ли путь с neural_network/
+    if (normalizedPath.startsWith('neural_network/')) {
+      return `${apiBase}/${normalizedPath.substring('neural_network/'.length)}`;
+    }
+    
+    return `${apiBase}/videos/${normalizedPath}`;
+  };
+
   useEffect(() => {
     if (analysisResult?.video_path) {
       // Show notification about video location
@@ -143,8 +171,16 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
             <video 
               ref={videoRef}
               controls 
-              src={analysisResult.video_path}
+              src={formatVideoUrl(analysisResult.video_path)}
               className="w-full rounded-md bg-black aspect-video"
+              onError={(e) => {
+                console.error("Ошибка загрузки видео:", e);
+                toast({
+                  title: "Ошибка загрузки видео",
+                  description: "Не удалось загрузить видеозапись. Проверьте путь и формат файла.",
+                  variant: "destructive"
+                });
+              }}
             />
             <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
               <FileVideo className="h-3 w-3" />
