@@ -97,13 +97,13 @@ CREATE TABLE IF NOT EXISTS FatigueVideos (
 )
 ''')
 
-# Fatigue Analysis table with detailed metrics
+# Fatigue Analysis table with detailed metrics - FIXED the CHECK constraint
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS FatigueAnalysis (
     analysis_id INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id INTEGER,
     flight_id INTEGER,
-    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High')),
+    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High', 'Unknown')),
     neural_network_score REAL,
     feedback_score REAL,
     analysis_date TEXT,
@@ -213,4 +213,3 @@ conn.commit()
 conn.close()
 
 print("Database schema successfully initialized!")
-

@@ -48,11 +48,16 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
   return (
     <div 
       className="p-6 border rounded-lg transition-all duration-200 border-primary bg-primary/5"
+      aria-describedby="video-recorder-description"
     >
       <div className="flex items-center gap-3 mb-4">
         <Video className="h-5 w-5 text-primary" />
         <h3 className="text-lg font-medium">Реальный анализ</h3>
       </div>
+      
+      <p id="video-recorder-description" className="sr-only">
+        Запись и анализ видео для определения уровня усталости пилота
+      </p>
       
       {recording ? (
         <Button variant="destructive" onClick={onStopRecording} className="w-full mb-4">

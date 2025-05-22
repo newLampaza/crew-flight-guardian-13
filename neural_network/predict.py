@@ -6,9 +6,62 @@ import mediapipe as mp
 import time
 import os
 from pathlib import Path
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Try to initialize face detection with fallback options
+def get_face_detection():
+    try:
+        # Standard initialization
+        mp_face_detection = mp.solutions.face_detection
+        return mp_face_detection.FaceDetection(min_detection_confidence=0.7)
+    except Exception as e:
+        logger.error(f"Error initializing standard face detection: {e}")
+        try:
+            # Attempt to locate model files in known paths
+            # In colab/some environments, it's under mediapipe/modules/...
+            detection_paths = [
+                os.path.join(os.path.dirname(mp.__file__), "modules", "face_detection", "face_detection_short_range.tflite"),
+                os.path.join(os.path.dirname(os.path.dirname(mp.__file__)), "mediapipe", "modules", "face_detection", "face_detection_short_range.tflite")
+            ]
+            
+            for path in detection_paths:
+                if os.path.exists(path):
+                    logger.info(f"Found face detection model at: {path}")
+                    mp_face_detection = mp.solutions.face_detection
+                    return mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
+            
+            # Last resort - model_selection=0 uses a shorter-range model
+            logger.info(f"Using fallback model_selection=0 for face detection")
+            mp_face_detection = mp.solutions.face_detection
+            return mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
+        except Exception as nested_e:
+            logger.error(f"Failed to initialize face detection with fallbacks: {nested_e}")
+            # Return None - will have to handle this later
+            return None
+
+# Get the face detector
 mp_face_detection = mp.solutions.face_detection
-FaceDetection = mp_face_detection.FaceDetection
+try:
+    FaceDetection = get_face_detection
+except Exception as e:
+    logger.error(f"Face detection initialization failed: {e}")
+    # Dummy class for backup
+    class DummyFaceDetection:
+        def __init__(self, min_detection_confidence=0.5):
+            self.min_detection_confidence = min_detection_confidence
+            
+        def process(self, image):
+            class DummyResult:
+                def __init__(self):
+                    self.detections = None
+                    
+            return DummyResult()
+            
+    FaceDetection = lambda: DummyFaceDetection()
 
 # Глобальный экземпляр анализатора для повторного использования
 _GLOBAL_ANALYZER = None
@@ -37,10 +90,10 @@ class FatigueAnalyzer:
         """Загружает модель и инициализирует детектор лиц"""
         try:
             self.model = tf.keras.models.load_model(self.model_path)
-            self.face_detector = FaceDetection(min_detection_confidence=0.7)
-            print("Модель и детектор лиц успешно загружены")
+            self.face_detector = get_face_detection()
+            logger.info("Модель и детектор лиц успешно загружены")
         except Exception as e:
-            print(f"Ошибка при загрузке ресурсов: {e}")
+            logger.error(f"Ошибка при загрузке ресурсов: {e}")
             raise
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
@@ -48,10 +101,15 @@ class FatigueAnalyzer:
             try:
                 self.load_resources()
             except Exception as e:
-                print(f"Не удалось загрузить модель: {e}")
+                logger.error(f"Не удалось загрузить модель: {e}")
                 return frame
         
         try:
+            # Ensure the frame is not empty and is valid
+            if frame is None or frame.size == 0 or not isinstance(frame, np.ndarray):
+                logger.warning("Empty or invalid frame received")
+                return frame
+
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = self.face_detector.process(rgb_frame)
             
@@ -83,13 +141,13 @@ class FatigueAnalyzer:
                             cv2.putText(frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
                                       (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                         except Exception as e:
-                            print(f"Ошибка обработки лица: {str(e)}")
+                            logger.error(f"Ошибка обработки лица: {str(e)}")
             else:
                 if time.time() - self.last_face_time > 2:
                     self._update_buffer(1.0)  # Предполагаем усталость, если лицо не обнаружено
             
         except Exception as e:
-            print(f"Ошибка обработки кадра: {str(e)}")
+            logger.error(f"Ошибка обработки кадра: {str(e)}")
             
         return frame
 
@@ -104,7 +162,7 @@ class FatigueAnalyzer:
 
     def get_final_score(self) -> dict:
         if not self.buffer:
-            return {'level': 'No data', 'score': 0.0, 'percent': 0.0}
+            return {'level': 'Unknown', 'score': 0.0, 'percent': 0.0}
             
         avg_score = np.mean(self.buffer)
         if avg_score < 0.3:
@@ -170,7 +228,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
         result = analyzer.get_final_score()
         return result['level'], result['percent']
     except Exception as e:
-        print(f"Ошибка анализа видео: {str(e)}")
+        logger.error(f"Ошибка анализа видео: {str(e)}")
         # Более безопасная обработка ошибки - возвращаем неопределенный уровень усталости
         return "Unknown", 0
 

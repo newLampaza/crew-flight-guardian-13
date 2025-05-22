@@ -1,3 +1,4 @@
+
 from flask import Blueprint, jsonify, request, send_from_directory
 import os
 import sqlite3
@@ -155,7 +156,7 @@ def analyze_fatigue():
                     analysis_id INTEGER PRIMARY KEY AUTOINCREMENT,
                     employee_id INTEGER,
                     flight_id INTEGER,
-                    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High')),
+                    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High', 'Unknown')),
                     neural_network_score REAL,
                     feedback_score REAL,
                     analysis_date TEXT,
@@ -184,6 +185,11 @@ def analyze_fatigue():
                 logger.info(f"Video info: resolution={resolution}, fps={fps}")
             
             try:
+                # Make sure fatigue_level is valid for the constraint
+                if fatigue_level not in ('Low', 'Medium', 'High', 'Unknown'):
+                    logger.warning(f"Invalid fatigue_level: {fatigue_level}, defaulting to 'Unknown'")
+                    fatigue_level = 'Unknown'
+                
                 cursor.execute(
                     '''INSERT INTO FatigueAnalysis 
                        (employee_id, video_path, analysis_date, fatigue_level, neural_network_score, resolution, fps) 
@@ -221,6 +227,8 @@ def analyze_fatigue():
             return jsonify({'error': str(e)}), 500
     
     return _analyze_fatigue()
+
+# ... keep existing code for other routes
 
 @fatigue_bp.route('/fatigue/save-recording', methods=['POST'])
 def save_recording():
@@ -378,6 +386,12 @@ def analyze_flight():
             try:
                 fatigue_level, score_percent = analyze_source(video_path, is_video_file=True)
                 score = score_percent / 100.0
+                
+                # Make sure fatigue_level is valid for the constraint
+                if fatigue_level not in ('Low', 'Medium', 'High', 'Unknown'):
+                    logger.warning(f"Invalid fatigue_level: {fatigue_level}, defaulting to 'Unknown'")
+                    fatigue_level = 'Unknown'
+                
             except Exception as e:
                 logger.error(f"Neural network analysis failed for flight: {str(e)}")
                 logger.error(traceback.format_exc())
@@ -419,6 +433,8 @@ def analyze_flight():
             return jsonify({'error': str(e)}), 500
             
     return _analyze_flight()
+
+# ... keep existing code for other routes
 
 @fatigue_bp.route('/fatigue/history', methods=['GET'])
 def get_fatigue_history():
