@@ -12,56 +12,9 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Try to initialize face detection with fallback options
-def get_face_detection():
-    try:
-        # Standard initialization
-        mp_face_detection = mp.solutions.face_detection
-        return mp_face_detection.FaceDetection(min_detection_confidence=0.7)
-    except Exception as e:
-        logger.error(f"Error initializing standard face detection: {e}")
-        try:
-            # Attempt to locate model files in known paths
-            # In colab/some environments, it's under mediapipe/modules/...
-            detection_paths = [
-                os.path.join(os.path.dirname(mp.__file__), "modules", "face_detection", "face_detection_short_range.tflite"),
-                os.path.join(os.path.dirname(os.path.dirname(mp.__file__)), "mediapipe", "modules", "face_detection", "face_detection_short_range.tflite")
-            ]
-            
-            for path in detection_paths:
-                if os.path.exists(path):
-                    logger.info(f"Found face detection model at: {path}")
-                    mp_face_detection = mp.solutions.face_detection
-                    return mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
-            
-            # Last resort - model_selection=0 uses a shorter-range model
-            logger.info(f"Using fallback model_selection=0 for face detection")
-            mp_face_detection = mp.solutions.face_detection
-            return mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence=0.7)
-        except Exception as nested_e:
-            logger.error(f"Failed to initialize face detection with fallbacks: {nested_e}")
-            # Return None - will have to handle this later
-            return None
-
-# Get the face detector
+# Initialize face detection
 mp_face_detection = mp.solutions.face_detection
-try:
-    FaceDetection = get_face_detection
-except Exception as e:
-    logger.error(f"Face detection initialization failed: {e}")
-    # Dummy class for backup
-    class DummyFaceDetection:
-        def __init__(self, min_detection_confidence=0.5):
-            self.min_detection_confidence = min_detection_confidence
-            
-        def process(self, image):
-            class DummyResult:
-                def __init__(self):
-                    self.detections = None
-                    
-            return DummyResult()
-            
-    FaceDetection = lambda: DummyFaceDetection()
+FaceDetection = mp_face_detection.FaceDetection
 
 # Глобальный экземпляр анализатора для повторного использования
 _GLOBAL_ANALYZER = None
@@ -90,7 +43,8 @@ class FatigueAnalyzer:
         """Загружает модель и инициализирует детектор лиц"""
         try:
             self.model = tf.keras.models.load_model(self.model_path)
-            self.face_detector = get_face_detection()
+            # Используем более высокий показатель уверенности для более точного определения лиц
+            self.face_detector = FaceDetection(min_detection_confidence=0.5)
             logger.info("Модель и детектор лиц успешно загружены")
         except Exception as e:
             logger.error(f"Ошибка при загрузке ресурсов: {e}")

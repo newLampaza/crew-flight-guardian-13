@@ -1,3 +1,4 @@
+
 from logging.handlers import RotatingFileHandler
 import os
 from flask import Flask, send_from_directory, jsonify
@@ -97,7 +98,7 @@ def serve_video(filename):
             'mov': 'video/quicktime',
             'wmv': 'video/x-ms-wmv'
         }
-        return mime_types.get(extension, 'video/webm')  # По умолчанию используем video/webm
+        return mime_types.get(extension, 'video/mp4')  # По умолчанию используем video/mp4
     
     # Проверяем наличие файла в основной директории
     video_dir = os.path.join('neural_network', 'data', 'video')
