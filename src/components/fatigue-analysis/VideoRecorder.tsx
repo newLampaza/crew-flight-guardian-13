@@ -45,6 +45,8 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
     }
   };
 
+  const recorderDescription = "Запись и анализ видео для определения уровня усталости пилота";
+
   return (
     <div 
       className="p-6 border rounded-lg transition-all duration-200 border-primary bg-primary/5"
@@ -55,8 +57,8 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
         <h3 className="text-lg font-medium">Реальный анализ</h3>
       </div>
       
-      <p id="video-recorder-description" className="sr-only">
-        Запись и анализ видео для определения уровня усталости пилота
+      <p id="video-recorder-description" className="text-sm text-muted-foreground mb-4">
+        {recorderDescription}
       </p>
       
       {recording ? (
@@ -82,6 +84,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
           muted 
           playsInline 
           className="w-full rounded-md bg-black aspect-video shadow-lg"
+          aria-label="Видео с камеры для анализа усталости"
         />
       </div>
       
