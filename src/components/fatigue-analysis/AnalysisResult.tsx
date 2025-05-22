@@ -48,7 +48,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   };
 
-  // Функция для форматирования URL видео для корректного отображения
+  // Улучшенная функция для форматирования URL видео
   const formatVideoUrl = (path?: string) => {
     if (!path) return '';
     
@@ -63,16 +63,35 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     // Формируем полный URL к API эндпоинту
     const apiBase = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
     
-    // Проверяем начинается ли путь с videos/
+    // Проверяем различные форматы путей
+    if (normalizedPath.includes('neural_network/data/video/')) {
+      // Извлекаем имя файла из полного пути
+      const fileName = normalizedPath.split('/').pop();
+      return `${apiBase}/videos/${fileName}`;
+    }
+    
     if (normalizedPath.startsWith('videos/')) {
       return `${apiBase}/${normalizedPath}`;
     }
     
-    // Проверяем начинается ли путь с neural_network/
     if (normalizedPath.startsWith('neural_network/')) {
-      return `${apiBase}/${normalizedPath.substring('neural_network/'.length)}`;
+      // Извлекаем путь после neural_network/
+      const subPath = normalizedPath.substring('neural_network/'.length);
+      return `${apiBase}/videos/${subPath}`;
     }
     
+    // Добавляем проверку на полные пути системы
+    if (normalizedPath.includes('/data/video/')) {
+      const fileName = normalizedPath.split('/').pop();
+      return `${apiBase}/videos/${fileName}`;
+    }
+    
+    // Для случаев, когда путь - просто имя файла
+    if (!normalizedPath.includes('/')) {
+      return `${apiBase}/videos/${normalizedPath}`;
+    }
+    
+    // Стандартная обработка для остальных случаев
     return `${apiBase}/videos/${normalizedPath}`;
   };
 
@@ -100,6 +119,15 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
           </Button>
         )
       });
+    }
+  }, [analysisResult?.video_path]);
+
+  // Отладочный вывод в консоль для проверки URL
+  useEffect(() => {
+    if (analysisResult?.video_path) {
+      const formattedUrl = formatVideoUrl(analysisResult.video_path);
+      console.log('Исходный путь:', analysisResult.video_path);
+      console.log('Форматированный URL:', formattedUrl);
     }
   }, [analysisResult?.video_path]);
 
@@ -173,8 +201,10 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
               controls 
               src={formatVideoUrl(analysisResult.video_path)}
               className="w-full rounded-md bg-black aspect-video"
+              aria-label="Видео с камеры для анализа усталости"
               onError={(e) => {
                 console.error("Ошибка загрузки видео:", e);
+                console.error("URL видео:", formatVideoUrl(analysisResult.video_path));
                 toast({
                   title: "Ошибка загрузки видео",
                   description: "Не удалось загрузить видеозапись. Проверьте путь и формат файла.",

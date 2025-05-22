@@ -82,14 +82,33 @@ def serve(path):
         logger.error(f"index.html not found in {static_dir}")
         return jsonify({"error": "Frontend not built. Please run 'npm run build' first."}), 500
 
-# Обработка запросов к /api/videos для корректного доступа к видеофайлам
+# Улучшенная обработка запросов к видео-файлам 
 @app.route('/api/videos/<path:filename>')
 def serve_video(filename):
+    """Обработка запросов к видеофайлам"""
+    logger.info(f"Запрос видео: {filename}")
+    
+    # Проверяем наличие файла в основной директории
     video_dir = os.path.join('neural_network', 'data', 'video')
     if os.path.exists(os.path.join(video_dir, filename)):
-        return send_from_directory(video_dir, filename, mimetype='video/mp4')
-    else:
-        return jsonify({"error": "Video file not found"}), 404
+        logger.info(f"Найден файл в основной директории: {os.path.join(video_dir, filename)}")
+        return send_from_directory(video_dir, filename)
+    
+    # Используем "гибкий" поиск - проверяем только имя файла без учёта пути
+    for root, dirs, files in os.walk(video_dir):
+        if filename in files:
+            rel_path = os.path.relpath(root, video_dir)
+            if rel_path == '.':
+                logger.info(f"Найден файл при гибком поиске: {os.path.join(video_dir, filename)}")
+                return send_from_directory(video_dir, filename)
+            else:
+                subdir = os.path.join(video_dir, rel_path)
+                logger.info(f"Найден файл в поддиректории: {os.path.join(subdir, filename)}")
+                return send_from_directory(subdir, filename)
+    
+    # Если файл не найден
+    logger.error(f"Видео-файл не найден: {filename}")
+    return jsonify({"error": "Video file not found"}), 404
 
 # Test sessions storage for cognitive tests
 test_sessions = {}
