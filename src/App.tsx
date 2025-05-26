@@ -1,82 +1,173 @@
-import { Routes, Route, BrowserRouter } from "react-router-dom";
-import { AuthProvider } from "@/context/AuthContext";
-import { Toaster } from "@/components/ui/toaster";
+
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/context/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import RoleProtectedRoute from "@/components/RoleProtectedRoute";
+
+// Import pages
+import Index from "@/pages/Index";
 import LoginPage from "@/pages/LoginPage";
 import Dashboard from "@/pages/Dashboard";
 import FatigueAnalysisPage from "@/pages/FatigueAnalysisPage";
-import SchedulePage from "@/pages/SchedulePage";
 import CognitiveTestsPage from "@/pages/CognitiveTestsPage";
-import TrainingPage from "@/pages/TrainingPage";
+import SchedulePage from "@/pages/SchedulePage";
 import FeedbackPage from "@/pages/FeedbackPage";
+import TrainingPage from "@/pages/TrainingPage";
 import SettingsPage from "@/pages/SettingsPage";
-import NotFound from "@/pages/NotFound";
-import ForbiddenPage from "@/pages/ForbiddenPage";
-import ProtectedRoute from "@/components/ProtectedRoute";
-import RoleProtectedRoute from "@/components/RoleProtectedRoute";
-import DashboardLayout from "@/components/DashboardLayout";
 import AdminDashboard from "@/pages/AdminDashboard";
+import AdminHome from "@/pages/AdminHome";
 import MedicalDashboard from "@/pages/MedicalDashboard";
-import { ThemeProvider } from "@/components/theme-provider";
-import "../src/index.css";
+import MedicalHome from "@/pages/MedicalHome";
+import ForbiddenPage from "@/pages/ForbiddenPage";
+import NotFound from "@/pages/NotFound";
+import PredictTestPage from "@/pages/PredictTestPage";
 
-// Создаем экземпляр QueryClient для React Query
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import "./App.css";
+
+const queryClient = new QueryClient();
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="system" enableSystem={true} storageKey="fatigue-guard-theme">
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/forbidden" element={<ForbiddenPage />} />
-              
-              <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/fatigue-analysis" element={<FatigueAnalysisPage />} />
-                <Route path="/schedule" element={<SchedulePage />} />
-                <Route path="/cognitive-tests" element={<CognitiveTestsPage />} />
-                <Route path="/training" element={<TrainingPage />} />
-                <Route path="/feedback" element={<FeedbackPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <AuthProvider>
+          <Router>
+            <div className="min-h-screen bg-background font-sans antialiased">
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/forbidden" element={<ForbiddenPage />} />
                 
-                {/* Маршрут для администратора */}
-                <Route 
-                  path="/admin" 
-                  element={
-                    <RoleProtectedRoute allowedRoles={["admin"]}>
-                      <AdminDashboard />
-                    </RoleProtectedRoute>
-                  } 
-                />
+                {/* Публичный роут для тестирования predict */}
+                <Route path="/predict-test" element={<PredictTestPage />} />
                 
-                {/* Маршрут для медицинского работника */}
-                <Route 
-                  path="/medical" 
+                {/* Protected pilot routes */}
+                <Route
+                  path="/dashboard"
                   element={
-                    <RoleProtectedRoute allowedRoles={["medical"]}>
-                      <MedicalDashboard />
-                    </RoleProtectedRoute>
-                  } 
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['pilot']}>
+                        <Dashboard />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
                 />
-              </Route>
-              
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+                <Route
+                  path="/fatigue-analysis"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['pilot']}>
+                        <FatigueAnalysisPage />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/cognitive-tests"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['pilot']}>
+                        <CognitiveTestsPage />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/schedule"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['pilot']}>
+                        <SchedulePage />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/feedback"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['pilot']}>
+                        <FeedbackPage />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/training"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['pilot']}>
+                        <TrainingPage />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['pilot']}>
+                        <SettingsPage />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Protected admin routes */}
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['admin']}>
+                        <AdminHome />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['admin']}>
+                        <AdminDashboard />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Protected medical routes */}
+                <Route
+                  path="/medical"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['medical']}>
+                        <MedicalHome />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/medical/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={['medical']}>
+                        <MedicalDashboard />
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
             <Toaster />
-          </AuthProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ThemeProvider>
+          </Router>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 
