@@ -12,7 +12,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize MediaPipe face detection - using the working configuration from OldUsePredict
+# Initialize MediaPipe face detection - точно как в OldUsePredict
 mp_face_detection = mp.solutions.face_detection
 FaceDetection = mp_face_detection.FaceDetection
 
@@ -34,25 +34,24 @@ class FatigueAnalyzer:
         self.model = tf.keras.models.load_model(model_path)
         self.buffer = []
         self.buffer_size = buffer_size
-        # Use the working MediaPipe configuration from OldUsePredict
+        # Используем точно такую же конфигурацию как в OldUsePredict
         self.face_detector = FaceDetection(min_detection_confidence=0.7)
         self.last_face_time = time.time()
+        self.face_detected_frames = 0
+        self.total_frames = 0
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
-        # Create a copy for output with visualizations
-        output_frame = frame.copy()
+        """Process frame exactly like OldUsePredict"""
+        self.total_frames += 1
         
-        # Convert to RGB for MediaPipe (as in the working version)
+        # Convert to RGB for MediaPipe - точно как в OldUsePredict
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.face_detector.process(rgb_frame)
         
-        # Add timestamp
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(output_frame, timestamp, (10, output_frame.shape[0] - 20), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-        
         if results.detections:
             self.last_face_time = time.time()
+            self.face_detected_frames += 1
+            
             for detection in results.detections:
                 bbox = detection.location_data.relative_bounding_box
                 h, w = frame.shape[:2]
@@ -74,26 +73,22 @@ class FatigueAnalyzer:
                         prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
                         self._update_buffer(prediction)
                         
-                        # Color based on fatigue level (as in working version)
+                        # Рисуем как в OldUsePredict
                         color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
-                        cv2.rectangle(output_frame, (x, y), (x+width, y+height), color, 2)
-                        cv2.putText(output_frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
+                        cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
+                        cv2.putText(frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
                                    (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                     except Exception as e:
                         print(f"Processing error: {str(e)}")
         else:
-            # Handle no face detection case (as in working version)
+            # Точно как в OldUsePredict
             if time.time() - self.last_face_time > 2:
                 self.buffer.append(1.0)
-            
-            # Add clear warning
-            cv2.putText(output_frame, "NO FACE DETECTED", (int(output_frame.shape[1]/2) - 100, int(output_frame.shape[0]/2)), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         
-        return output_frame
+        return frame
 
     def _preprocess_face(self, face: np.ndarray) -> np.ndarray:
-        # Preprocess exactly as in the working version
+        """Preprocess exactly as in OldUsePredict"""
         face = cv2.resize(face, (48, 48))
         return face.astype(np.float32) / 255.0
 
@@ -103,7 +98,7 @@ class FatigueAnalyzer:
             self.buffer.pop(0)
 
     def get_final_score(self) -> dict:
-        # Return results exactly as in the working version
+        """Return results exactly as in OldUsePredict"""
         if not self.buffer:
             return {'level': 'No data', 'score': 0.0, 'percent': 0.0}
             
@@ -122,7 +117,7 @@ class FatigueAnalyzer:
         }
 
 def analyze_source(source, is_video_file=False, output_file=None):
-    """Main analysis function - simplified and based on working version"""
+    """Main analysis function - точно как в OldUsePredict"""
     try:
         analyzer = FatigueAnalyzer('neural_network/data/models/fatigue_model.keras')
         
@@ -140,27 +135,17 @@ def analyze_source(source, is_video_file=False, output_file=None):
             out = cv2.VideoWriter(output_file, fourcc, 30.0, 
                                 (frame_width, frame_height))
         
-        frame_count = 0
-        face_detected_count = 0
-        
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
                 
             processed = analyzer.process_frame(frame)
-            frame_count += 1
-            
-            # Count frames with faces
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = analyzer.face_detector.process(rgb_frame)
-            if results.detections:
-                face_detected_count += 1
             
             if output_file:
                 out.write(processed)
             
-            # Show frame only for real-time mode
+            # Показываем только для реального времени
             if not is_video_file:
                 cv2.imshow('Analysis', processed)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -174,25 +159,25 @@ def analyze_source(source, is_video_file=False, output_file=None):
         # Get final result
         result = analyzer.get_final_score()
         
-        # Check if we detected any faces
-        face_detected_ratio = face_detected_count / frame_count if frame_count > 0 else 0
+        # Проверяем, было ли обнаружено лицо
+        face_detected_ratio = analyzer.face_detected_frames / analyzer.total_frames if analyzer.total_frames > 0 else 0
         
         if face_detected_ratio == 0:
-            # No face detected - return error
+            # Лицо не обнаружено - возвращаем ошибку
             return "Unknown", 0, {
                 'level': 'Unknown',
                 'score': 0.0,
                 'percent': 0.0,
                 'error': 'No face detected in video',
                 'face_detected_ratio': 0,
-                'frames_analyzed': frame_count,
+                'frames_analyzed': analyzer.total_frames,
                 'resolution': f"{frame_width}x{frame_height}",
                 'fps': int(fps)
             }
         
-        # Add metadata
+        # Добавляем метаданные
         result['face_detected_ratio'] = face_detected_ratio
-        result['frames_analyzed'] = frame_count
+        result['frames_analyzed'] = analyzer.total_frames
         result['resolution'] = f"{frame_width}x{frame_height}"
         result['fps'] = int(fps)
         
