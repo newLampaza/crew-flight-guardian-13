@@ -1,7 +1,7 @@
 
 import React, { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Video, Save, Download } from 'lucide-react';
+import { Video, Save, Download, Lightbulb, Eye, AlertCircle } from 'lucide-react';
 
 interface VideoRecorderProps {
   recording: boolean;
@@ -60,6 +60,25 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
       <p id="video-recorder-description" className="text-sm text-muted-foreground mb-4">
         {recorderDescription}
       </p>
+
+      {/* Recording Tips */}
+      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
+        <div className="flex items-start gap-2">
+          <Lightbulb className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-blue-800 dark:text-blue-200">
+            <p className="font-medium mb-1">Советы для успешной записи:</p>
+            <ul className="space-y-1 text-xs">
+              <li className="flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                Расположите лицо по центру кадра
+              </li>
+              <li>• Обеспечьте хорошее освещение</li>
+              <li>• Смотрите прямо в камеру</li>
+              <li>• Не закрывайте лицо руками</li>
+            </ul>
+          </div>
+        </div>
+      </div>
       
       {recording ? (
         <Button variant="destructive" onClick={onStopRecording} className="w-full mb-4">
@@ -86,6 +105,14 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
           className="w-full rounded-md bg-black aspect-video shadow-lg"
           aria-label="Видео с камеры для анализа усталости"
         />
+        
+        {/* Recording indicator overlay */}
+        {recording && (
+          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
+            <span className="animate-pulse">●</span>
+            REC
+          </div>
+        )}
       </div>
       
       {recordedBlob && !recording && (
@@ -102,8 +129,12 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
       )}
       
       {cameraError && (
-        <div className="mt-3 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
-          {cameraError}
+        <div className="mt-3 p-3 bg-destructive/10 text-destructive rounded-md text-sm flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">Ошибка доступа к камере</p>
+            <p className="text-xs mt-1">{cameraError}</p>
+          </div>
         </div>
       )}
     </div>

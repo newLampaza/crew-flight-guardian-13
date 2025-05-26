@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import axios from 'axios';
@@ -143,6 +142,18 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           setTimeout(() => {
             window.location.href = '/login';
           }, 2000);
+          return;
+        }
+        
+        // Проверяем, является ли это ошибкой "лицо не обнаружено"
+        if (apiError.response?.status === 400 && apiError.response?.data?.error?.includes('face')) {
+          setAnalysisProgress({loading: false, message: '', percent: 0});
+          
+          toast({
+            title: "Лицо не обнаружено",
+            description: "Попробуйте записать видео с лучшим освещением, расположив лицо по центру кадра",
+            variant: "destructive"
+          });
           return;
         }
         
