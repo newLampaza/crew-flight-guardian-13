@@ -12,9 +12,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize MediaPipe face detection - точно как в OldUsePredict
+# Простейшая инициализация MediaPipe без дополнительных параметров
 mp_face_detection = mp.solutions.face_detection
-FaceDetection = mp_face_detection.FaceDetection
 
 # Global analyzer instance for reuse
 _GLOBAL_ANALYZER = None
@@ -34,61 +33,70 @@ class FatigueAnalyzer:
         self.model = tf.keras.models.load_model(model_path)
         self.buffer = []
         self.buffer_size = buffer_size
-        # Используем точно такую же конфигурацию как в OldUsePredict
-        self.face_detector = FaceDetection(min_detection_confidence=0.7)
+        # Используем самую простую конфигурацию
+        self.face_detector = mp_face_detection.FaceDetection(min_detection_confidence=0.5)
         self.last_face_time = time.time()
         self.face_detected_frames = 0
         self.total_frames = 0
 
     def process_frame(self, frame: np.ndarray) -> np.ndarray:
-        """Process frame exactly like OldUsePredict"""
+        """Process frame with simple face detection"""
         self.total_frames += 1
         
-        # Convert to RGB for MediaPipe - точно как в OldUsePredict
+        # Convert to RGB for MediaPipe
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.face_detector.process(rgb_frame)
+        
+        try:
+            results = self.face_detector.process(rgb_frame)
+        except Exception as e:
+            logger.error(f"Face detection error: {e}")
+            # Если ошибка детекции, просто пропускаем кадр
+            return frame
         
         if results.detections:
             self.last_face_time = time.time()
             self.face_detected_frames += 1
             
             for detection in results.detections:
-                bbox = detection.location_data.relative_bounding_box
-                h, w = frame.shape[:2]
-                
-                x = int(bbox.xmin * w)
-                y = int(bbox.ymin * h)
-                width = int(bbox.width * w)
-                height = int(bbox.height * h)
-                
-                x = max(0, x)
-                y = max(0, y)
-                width = min(w - x, width)
-                height = min(h - y, height)
+                try:
+                    bbox = detection.location_data.relative_bounding_box
+                    h, w = frame.shape[:2]
+                    
+                    x = int(bbox.xmin * w)
+                    y = int(bbox.ymin * h)
+                    width = int(bbox.width * w)
+                    height = int(bbox.height * h)
+                    
+                    x = max(0, x)
+                    y = max(0, y)
+                    width = min(w - x, width)
+                    height = min(h - y, height)
 
-                if width > 10 and height > 10:
-                    try:
+                    if width > 10 and height > 10:
                         face_roi = frame[y:y+height, x:x+width]
                         processed = self._preprocess_face(face_roi)
                         prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
                         self._update_buffer(prediction)
                         
-                        # Рисуем как в OldUsePredict
+                        # Рисуем прямоугольник и текст
                         color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
                         cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
-                        cv2.putText(frame, f"Fatigue: {np.mean(self.buffer):.2f}", 
+                        
+                        avg_score = np.mean(self.buffer) if self.buffer else 0
+                        cv2.putText(frame, f"Fatigue: {avg_score:.2f}", 
                                    (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
-                    except Exception as e:
-                        print(f"Processing error: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Processing error: {str(e)}")
+                    continue
         else:
-            # Точно как в OldUsePredict
+            # Если лицо не обнаружено более 2 секунд, добавляем высокое значение усталости
             if time.time() - self.last_face_time > 2:
                 self.buffer.append(1.0)
         
         return frame
 
     def _preprocess_face(self, face: np.ndarray) -> np.ndarray:
-        """Preprocess exactly as in OldUsePredict"""
+        """Preprocess face for model"""
         face = cv2.resize(face, (48, 48))
         return face.astype(np.float32) / 255.0
 
@@ -98,7 +106,7 @@ class FatigueAnalyzer:
             self.buffer.pop(0)
 
     def get_final_score(self) -> dict:
-        """Return results exactly as in OldUsePredict"""
+        """Return final analysis results"""
         if not self.buffer:
             return {'level': 'No data', 'score': 0.0, 'percent': 0.0}
             
@@ -116,8 +124,14 @@ class FatigueAnalyzer:
             'percent': round(avg_score * 100, 1)
         }
 
+    def close(self):
+        """Clean up resources"""
+        if hasattr(self, 'face_detector'):
+            self.face_detector.close()
+
 def analyze_source(source, is_video_file=False, output_file=None):
-    """Main analysis function - точно как в OldUsePredict"""
+    """Main analysis function"""
+    analyzer = None
     try:
         analyzer = FatigueAnalyzer('neural_network/data/models/fatigue_model.keras')
         
@@ -130,19 +144,22 @@ def analyze_source(source, is_video_file=False, output_file=None):
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         
+        out = None
         if output_file:
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
             out = cv2.VideoWriter(output_file, fourcc, 30.0, 
                                 (frame_width, frame_height))
         
+        frame_count = 0
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
                 
+            frame_count += 1
             processed = analyzer.process_frame(frame)
             
-            if output_file:
+            if output_file and out:
                 out.write(processed)
             
             # Показываем только для реального времени
@@ -152,7 +169,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
                     break
         
         cap.release()
-        if output_file:
+        if out:
             out.release()
         cv2.destroyAllWindows()
         
@@ -163,7 +180,6 @@ def analyze_source(source, is_video_file=False, output_file=None):
         face_detected_ratio = analyzer.face_detected_frames / analyzer.total_frames if analyzer.total_frames > 0 else 0
         
         if face_detected_ratio == 0:
-            # Лицо не обнаружено - возвращаем ошибку
             return "Unknown", 0, {
                 'level': 'Unknown',
                 'score': 0.0,
@@ -193,6 +209,9 @@ def analyze_source(source, is_video_file=False, output_file=None):
             'face_detected_ratio': 0,
             'frames_analyzed': 0
         }
+    finally:
+        if analyzer:
+            analyzer.close()
 
 if __name__ == '__main__':
     import argparse
