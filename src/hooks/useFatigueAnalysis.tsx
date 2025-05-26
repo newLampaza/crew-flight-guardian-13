@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import axios from 'axios';
@@ -26,22 +25,6 @@ interface Flight {
 
 const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
 
-// Логгер с разными уровнями
-const logger = {
-  info: (message: string, data?: any) => {
-    console.log(`[FatigueAnalysis] INFO: ${message}`, data || '');
-  },
-  warn: (message: string, data?: any) => {
-    console.warn(`[FatigueAnalysis] WARN: ${message}`, data || '');
-  },
-  error: (message: string, error?: any) => {
-    console.error(`[FatigueAnalysis] ERROR: ${message}`, error || '');
-  },
-  debug: (message: string, data?: any) => {
-    console.debug(`[FatigueAnalysis] DEBUG: ${message}`, data || '');
-  }
-};
-
 // Configure axios instance with proper base URL and auth token
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -56,35 +39,13 @@ apiClient.interceptors.request.use(
     const token = localStorage.getItem('fatigue-guard-token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      logger.debug('Добавлен токен авторизации к запросу');
     } else {
-      logger.warn('Токен авторизации отсутствует');
+      console.warn('No authentication token available for API request');
     }
-    
-    logger.info(`Отправка запроса: ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
   (error) => {
-    logger.error('Ошибка при подготовке запроса', error);
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor for logging
-apiClient.interceptors.response.use(
-  (response) => {
-    logger.info(`Успешный ответ от ${response.config.url}`, {
-      status: response.status,
-      dataSize: JSON.stringify(response.data).length
-    });
-    return response;
-  },
-  (error) => {
-    logger.error(`Ошибка запроса к ${error.config?.url}`, {
-      status: error.response?.status,
-      message: error.message,
-      data: error.response?.data
-    });
+    console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -110,12 +71,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
   };
 
   const submitRecording = async (blob: Blob) => {
-    const startTime = Date.now();
-    logger.info('Начало анализа записи', {
-      blobSize: blob.size,
-      blobType: blob.type
-    });
-
     try {
       setRecordedBlob(blob);
       setAnalysisProgress({
@@ -124,18 +79,14 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 20,
       });
 
-      logger.debug('Установлен прогресс: Обработка видео (20%)');
       await new Promise(resolve => setTimeout(resolve, 500));
 
       setAnalysisProgress(p => ({...p, percent: 40, message: 'Загрузка на сервер...'}));
-      logger.debug('Установлен прогресс: Загрузка на сервер (40%)');
 
       await new Promise(resolve => setTimeout(resolve, 500));
       
       if (!blob || blob.size === 0) {
-        const errorMsg = 'Записанное видео слишком короткое или повреждено';
-        logger.error(errorMsg, { blobSize: blob?.size });
-        throw new Error(errorMsg);
+        throw new Error('Записанное видео слишком короткое или повреждено');
       }
 
       const formData = new FormData();
@@ -147,11 +98,8 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 60,
       });
 
-      logger.info('Отправка видео на анализ', {
-        url: `${API_BASE_URL}/fatigue/analyze`,
-        fileName: `recording_${Date.now()}.webm`,
-        formDataSize: blob.size
-      });
+      console.log('Submitting video to API:', `${API_BASE_URL}/fatigue/analyze`);
+      console.log('Current auth token:', localStorage.getItem('fatigue-guard-token'));
       
       // Реальный запрос к API
       try {
@@ -166,7 +114,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
               ...p,
               percent: 40 + Math.min(percentCompleted / 2, 40), // от 40% до 80%
             }));
-            logger.debug(`Прогресс загрузки: ${percentCompleted}%`);
           }
         });
 
@@ -176,27 +123,22 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           percent: 100,
         });
 
-        const analysisTime = Date.now() - startTime;
-        logger.info('Анализ успешно завершен', {
-          duration: `${analysisTime}ms`,
-          result: response.data
-        });
-
         if (response.data) {
+          console.log('API Response:', response.data);
           setAnalysisResult(response.data);
           if (onSuccess) onSuccess(response.data);
         }
       } catch (apiError: any) {
-        logger.error('Ошибка API при анализе', apiError);
+        console.error('API Error:', apiError);
         
         if (apiError.response?.status === 401) {
-          logger.warn('Ошибка авторизации - перенаправление на страницу входа');
           toast({
             title: "Ошибка авторизации",
             description: "Необходимо выполнить вход в систему. Перенаправление на страницу входа...",
             variant: "destructive"
           });
           
+          // Если ошибка авторизации, перенаправляем на страницу входа
           setTimeout(() => {
             window.location.href = '/login';
           }, 2000);
@@ -207,8 +149,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         if (apiError.response?.status === 400 && apiError.response?.data?.error?.includes('face')) {
           setAnalysisProgress({loading: false, message: '', percent: 0});
           
-          logger.warn('Лицо не обнаружено в видео', apiError.response.data);
-          
           toast({
             title: "Лицо не обнаружено",
             description: "Попробуйте записать видео с лучшим освещением, расположив лицо по центру кадра",
@@ -216,8 +156,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           });
           return;
         }
-        
-        logger.error('Соединение с API недоступно - переход в демо-режим', apiError);
         
         toast({
           title: "Ошибка соединения с API",
@@ -237,8 +175,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
             video_path: '/videos/test.mp4'
           };
           
-          logger.info('Сгенерирован демо-результат', mockResult);
-          
           setAnalysisResult(mockResult);
           if (onSuccess) onSuccess(mockResult);
           
@@ -251,12 +187,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       }
       
     } catch (error) {
-      const analysisTime = Date.now() - startTime;
-      logger.error('Критическая ошибка анализа', {
-        error,
-        duration: `${analysisTime}ms`
-      });
-      
       setAnalysisProgress({loading: false, message: '', percent: 0});
       toast({
         title: "Ошибка анализа",
@@ -267,11 +197,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
   };
 
   const saveToHistory = async (blob: Blob) => {
-    logger.info('Начало сохранения записи в историю', {
-      blobSize: blob.size,
-      blobType: blob.type
-    });
-
     try {
       setAnalysisProgress({
         loading: true,
@@ -283,7 +208,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       formData.append('video', blob, `history_${Date.now()}.webm`);
       
       try {
-        logger.info('Отправка запроса на сохранение записи');
+        console.log('Saving video to API:', `${API_BASE_URL}/fatigue/save-recording`);
         
         // Сохраняем запись в базу данных
         const response = await apiClient.post('/fatigue/save-recording', formData, {
@@ -294,19 +219,16 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         
         setAnalysisProgress({loading: false, message: '', percent: 0});
         
-        logger.info('Запись успешно сохранена', response.data);
-        
         toast({
           title: "Запись сохранена",
           description: "Видео успешно сохранено в базе данных"
         });
         return response.data;
       } catch (apiError: any) {
-        logger.error('Ошибка API при сохранении', apiError);
+        console.error('Save API Error:', apiError);
         setAnalysisProgress({loading: false, message: '', percent: 0});
         
         if (apiError.response?.status === 401) {
-          logger.warn('Ошибка авторизации при сохранении');
           toast({
             title: "Ошибка авторизации",
             description: "Необходимо выполнить вход в систему",
@@ -324,7 +246,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       }
       
     } catch (error) {
-      logger.error('Критическая ошибка сохранения', error);
       setAnalysisProgress({loading: false, message: '', percent: 0});
       toast({
         title: "Ошибка сохранения",
@@ -336,8 +257,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
   };
 
   const analyzeFlight = async (lastFlight?: Flight | null) => {
-    logger.info('Начало анализа рейса', lastFlight);
-
     try {
       setAnalysisProgress({
         loading: true,
@@ -350,7 +269,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       setAnalysisProgress(p => ({...p, percent: 40, message: 'Загрузка видео рейса...'}));
 
       try {
-        logger.info('Отправка запроса на анализ рейса');
+        console.log('Analyzing flight with API:', `${API_BASE_URL}/fatigue/analyze-flight`, lastFlight);
         
         // Реальный запрос к API для анализа последнего рейса
         const response = await apiClient.post('/fatigue/analyze-flight', {
@@ -359,7 +278,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
 
         setAnalysisProgress({loading: false, message: '', percent: 100});
 
-        logger.info('Анализ рейса успешно завершен', response.data);
+        console.log('Flight analysis response:', response.data);
         
         if (response.data) {
           setAnalysisResult(response.data);
@@ -367,10 +286,9 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           return;
         }
       } catch (apiError: any) {
-        logger.error('Ошибка API при анализе рейса', apiError);
+        console.error('API Error:', apiError);
         
         if (apiError.response?.status === 401) {
-          logger.warn('Ошибка авторизации при анализе рейса');
           toast({
             title: "Ошибка авторизации",
             description: "Необходимо выполнить вход в систему",
@@ -378,8 +296,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           });
           return;
         }
-        
-        logger.info('API недоступно - переход в демо-режим для анализа рейса');
         
         toast({
           title: "Ошибка соединения с API",
@@ -417,8 +333,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
               video_path: lastFlight?.video_path
             };
             
-            logger.info('Сгенерирован демо-результат для рейса', mockResult);
-            
             setAnalysisResult(mockResult);
             if (onSuccess) onSuccess(mockResult);
             
@@ -432,7 +346,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       }
 
     } catch (error) {
-      logger.error('Критическая ошибка анализа рейса', error);
       setAnalysisProgress({loading: false, message: '', percent: 0});
       toast({
         title: "Ошибка анализа рейса",
