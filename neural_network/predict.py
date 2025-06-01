@@ -7,13 +7,22 @@ import time
 import os
 from pathlib import Path
 import logging
+import argparse
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure detailed logging
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('neural_network_analysis.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Простейшая инициализация MediaPipe без дополнительных параметров
 mp_face_detection = mp.solutions.face_detection
+mp_drawing = mp.solutions.drawing_utils
 
 # Global analyzer instance for reuse
 _GLOBAL_ANALYZER = None
@@ -24,24 +33,45 @@ def get_analyzer():
     if _GLOBAL_ANALYZER is None:
         model_path = os.path.join('neural_network', 'data', 'models', 'fatigue_model.keras')
         if not os.path.exists(model_path):
+            logger.error(f"Model not found at path: {model_path}")
             raise FileNotFoundError(f"Model not found at path: {model_path}")
+        logger.info(f"Loading model from: {model_path}")
         _GLOBAL_ANALYZER = FatigueAnalyzer(model_path)
     return _GLOBAL_ANALYZER
 
 class FatigueAnalyzer:
     def __init__(self, model_path: str, buffer_size: int = 15):
-        self.model = tf.keras.models.load_model(model_path)
+        logger.info(f"Initializing FatigueAnalyzer with model: {model_path}")
+        try:
+            self.model = tf.keras.models.load_model(model_path)
+            logger.info("Model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            raise
+            
         self.buffer = []
         self.buffer_size = buffer_size
-        # Используем самую простую конфигурацию
-        self.face_detector = mp_face_detection.FaceDetection(min_detection_confidence=0.5)
+        
+        try:
+            # Используем самую простую конфигурацию
+            self.face_detector = mp_face_detection.FaceDetection(min_detection_confidence=0.5)
+            logger.info("MediaPipe face detector initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize MediaPipe: {e}")
+            raise
+            
         self.last_face_time = time.time()
         self.face_detected_frames = 0
         self.total_frames = 0
+        self.processing_times = []
 
-    def process_frame(self, frame: np.ndarray) -> np.ndarray:
-        """Process frame with simple face detection"""
+    def process_frame(self, frame: np.ndarray, show_visualization: bool = False) -> np.ndarray:
+        """Process frame with detailed logging and optional visualization"""
+        start_time = time.time()
         self.total_frames += 1
+        
+        if self.total_frames % 30 == 0:  # Log every 30 frames
+            logger.info(f"Processing frame {self.total_frames}")
         
         # Convert to RGB for MediaPipe
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -49,15 +79,16 @@ class FatigueAnalyzer:
         try:
             results = self.face_detector.process(rgb_frame)
         except Exception as e:
-            logger.error(f"Face detection error: {e}")
-            # Если ошибка детекции, просто пропускаем кадр
+            logger.error(f"Face detection error on frame {self.total_frames}: {e}")
             return frame
         
         if results.detections:
             self.last_face_time = time.time()
             self.face_detected_frames += 1
             
-            for detection in results.detections:
+            logger.debug(f"Face detected in frame {self.total_frames}, total detections: {len(results.detections)}")
+            
+            for i, detection in enumerate(results.detections):
                 try:
                     bbox = detection.location_data.relative_bounding_box
                     h, w = frame.shape[:2]
@@ -72,26 +103,54 @@ class FatigueAnalyzer:
                     width = min(w - x, width)
                     height = min(h - y, height)
 
+                    logger.debug(f"Face bbox: x={x}, y={y}, w={width}, h={height}")
+
                     if width > 10 and height > 10:
                         face_roi = frame[y:y+height, x:x+width]
                         processed = self._preprocess_face(face_roi)
+                        
+                        # Predict fatigue
                         prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
                         self._update_buffer(prediction)
                         
-                        # Рисуем прямоугольник и текст
-                        color = (0, 0, 255) if prediction > 0.5 else (0, 255, 0)
-                        cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
+                        logger.debug(f"Fatigue prediction: {prediction:.3f}, buffer avg: {np.mean(self.buffer):.3f}")
                         
-                        avg_score = np.mean(self.buffer) if self.buffer else 0
-                        cv2.putText(frame, f"Fatigue: {avg_score:.2f}", 
-                                   (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                        # Visualization for real-time testing
+                        if show_visualization:
+                            avg_score = np.mean(self.buffer) if self.buffer else 0
+                            color = (0, 0, 255) if avg_score > 0.5 else (0, 255, 0)
+                            
+                            # Draw face rectangle
+                            cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
+                            
+                            # Draw fatigue info
+                            cv2.putText(frame, f"Fatigue: {avg_score:.2f}", 
+                                       (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+                            
+                            # Draw detection confidence
+                            confidence = detection.score[0] if detection.score else 0
+                            cv2.putText(frame, f"Conf: {confidence:.2f}", 
+                                       (x, y+height+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                        
+                    else:
+                        logger.warning(f"Face too small: {width}x{height}")
+                        
                 except Exception as e:
-                    logger.error(f"Processing error: {str(e)}")
+                    logger.error(f"Processing error for detection {i}: {str(e)}")
                     continue
         else:
             # Если лицо не обнаружено более 2 секунд, добавляем высокое значение усталости
             if time.time() - self.last_face_time > 2:
                 self.buffer.append(1.0)
+                logger.debug(f"No face detected for >2s, adding penalty score")
+        
+        # Record processing time
+        processing_time = time.time() - start_time
+        self.processing_times.append(processing_time)
+        
+        # Keep only last 100 processing times
+        if len(self.processing_times) > 100:
+            self.processing_times.pop(0)
         
         return frame
 
@@ -106,7 +165,7 @@ class FatigueAnalyzer:
             self.buffer.pop(0)
 
     def get_final_score(self) -> dict:
-        """Return final analysis results"""
+        """Return final analysis results with detailed stats"""
         if not self.buffer:
             return {'level': 'No data', 'score': 0.0, 'percent': 0.0}
             
@@ -117,43 +176,64 @@ class FatigueAnalyzer:
             level = "Medium"
         else:
             level = "High"
+        
+        # Calculate statistics
+        avg_processing_time = np.mean(self.processing_times) if self.processing_times else 0
+        face_detection_rate = self.face_detected_frames / self.total_frames if self.total_frames > 0 else 0
+        
+        logger.info(f"Final analysis - Level: {level}, Score: {avg_score:.3f}")
+        logger.info(f"Face detection rate: {face_detection_rate:.3f} ({self.face_detected_frames}/{self.total_frames})")
+        logger.info(f"Average processing time: {avg_processing_time:.3f}s")
             
         return {
             'level': level,
             'score': round(avg_score, 2),
-            'percent': round(avg_score * 100, 1)
+            'percent': round(avg_score * 100, 1),
+            'face_detection_rate': face_detection_rate,
+            'avg_processing_time': avg_processing_time
         }
 
     def close(self):
         """Clean up resources"""
+        logger.info("Closing FatigueAnalyzer")
         if hasattr(self, 'face_detector'):
             self.face_detector.close()
 
 def analyze_source(source, is_video_file=False, output_file=None):
-    """Main analysis function"""
+    """Main analysis function with enhanced logging"""
+    logger.info(f"Starting analysis - Source: {source}, Video file: {is_video_file}")
+    
     analyzer = None
     try:
         analyzer = FatigueAnalyzer('neural_network/data/models/fatigue_model.keras')
         
         cap = cv2.VideoCapture(source if is_video_file else 0)
         if not cap.isOpened():
-            raise ValueError("Не удалось открыть видео источник")
+            error_msg = f"Failed to open video source: {source}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
         # Get video properties
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         
+        logger.info(f"Video properties - Resolution: {frame_width}x{frame_height}, FPS: {fps}")
+        
         out = None
         if output_file:
             fourcc = cv2.VideoWriter_fourcc(*'XVID')
             out = cv2.VideoWriter(output_file, fourcc, 30.0, 
                                 (frame_width, frame_height))
+            logger.info(f"Output video writer initialized: {output_file}")
         
         frame_count = 0
+        start_time = time.time()
+        
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
+                logger.info("End of video stream")
                 break
                 
             frame_count += 1
@@ -164,9 +244,13 @@ def analyze_source(source, is_video_file=False, output_file=None):
             
             # Показываем только для реального времени
             if not is_video_file:
-                cv2.imshow('Analysis', processed)
+                cv2.imshow('Fatigue Analysis', processed)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
+                    logger.info("User pressed 'q', stopping analysis")
                     break
+        
+        total_time = time.time() - start_time
+        logger.info(f"Analysis completed - Processed {frame_count} frames in {total_time:.2f}s")
         
         cap.release()
         if out:
@@ -180,6 +264,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
         face_detected_ratio = analyzer.face_detected_frames / analyzer.total_frames if analyzer.total_frames > 0 else 0
         
         if face_detected_ratio == 0:
+            logger.warning("No face detected in entire video")
             return "Unknown", 0, {
                 'level': 'Unknown',
                 'score': 0.0,
@@ -197,10 +282,11 @@ def analyze_source(source, is_video_file=False, output_file=None):
         result['resolution'] = f"{frame_width}x{frame_height}"
         result['fps'] = int(fps)
         
+        logger.info(f"Analysis result: {result}")
         return result['level'], result['percent'], result
         
     except Exception as e:
-        logger.error(f"Analysis error: {str(e)}")
+        logger.error(f"Analysis error: {str(e)}", exc_info=True)
         return "Unknown", 0, {
             'level': 'Unknown',
             'score': 0.0,
@@ -213,25 +299,152 @@ def analyze_source(source, is_video_file=False, output_file=None):
         if analyzer:
             analyzer.close()
 
+def real_time_test():
+    """Функция для тестирования в реальном времени"""
+    print("=== ТЕСТ АНАЛИЗА УСТАЛОСТИ В РЕАЛЬНОМ ВРЕМЕНИ ===")
+    print("Инструкции:")
+    print("- Убедитесь, что камера подключена")
+    print("- Расположите лицо по центру экрана")
+    print("- Обеспечьте хорошее освещение")
+    print("- Нажмите 'q' для выхода")
+    print("- Нажмите 's' для сохранения скриншота")
+    print("=" * 50)
+    
+    logger.info("Starting real-time fatigue analysis test")
+    
+    try:
+        # Инициализируем анализатор
+        analyzer = FatigueAnalyzer('neural_network/data/models/fatigue_model.keras')
+        
+        # Открываем камеру
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            print("ОШИБКА: Не удалось открыть камеру")
+            return
+        
+        # Устанавливаем разрешение камеры
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        
+        frame_count = 0
+        fps_counter = 0
+        fps_start_time = time.time()
+        current_fps = 0
+        
+        print("Камера запущена. Смотрите в окно 'Fatigue Analysis Test'")
+        
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Не удалось получить кадр с камеры")
+                break
+            
+            frame_count += 1
+            fps_counter += 1
+            
+            # Обрабатываем кадр с визуализацией
+            processed_frame = analyzer.process_frame(frame, show_visualization=True)
+            
+            # Добавляем информационную панель
+            h, w = processed_frame.shape[:2]
+            
+            # Создаем информационную панель
+            info_panel = np.zeros((120, w, 3), dtype=np.uint8)
+            
+            # Получаем текущую статистику
+            current_score = np.mean(analyzer.buffer) if analyzer.buffer else 0
+            detection_rate = analyzer.face_detected_frames / analyzer.total_frames if analyzer.total_frames > 0 else 0
+            
+            # Рассчитываем FPS
+            if time.time() - fps_start_time >= 1.0:
+                current_fps = fps_counter
+                fps_counter = 0
+                fps_start_time = time.time()
+            
+            # Добавляем текст на панель
+            cv2.putText(info_panel, f"Fatigue Score: {current_score:.3f}", 
+                       (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(info_panel, f"Detection Rate: {detection_rate:.1%}", 
+                       (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(info_panel, f"FPS: {current_fps}", 
+                       (10, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.putText(info_panel, f"Frames: {analyzer.total_frames} | Faces: {analyzer.face_detected_frames}", 
+                       (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Добавляем статус
+            status_color = (0, 255, 0) if detection_rate > 0.5 else (0, 165, 255) if detection_rate > 0 else (0, 0, 255)
+            status_text = "GOOD" if detection_rate > 0.5 else "DETECTING..." if detection_rate > 0 else "NO FACE"
+            cv2.putText(info_panel, f"Status: {status_text}", 
+                       (w-200, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, status_color, 2)
+            
+            # Объединяем кадр и панель
+            combined = np.vstack([processed_frame, info_panel])
+            
+            # Показываем результат
+            cv2.imshow('Fatigue Analysis Test', combined)
+            
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                print("Выход по запросу пользователя")
+                break
+            elif key == ord('s'):
+                # Сохраняем скриншот
+                screenshot_name = f"fatigue_test_screenshot_{int(time.time())}.jpg"
+                cv2.imwrite(screenshot_name, combined)
+                print(f"Скриншот сохранен: {screenshot_name}")
+        
+        # Показываем финальную статистику
+        print("\n=== ФИНАЛЬНАЯ СТАТИСТИКА ===")
+        final_result = analyzer.get_final_score()
+        print(f"Уровень усталости: {final_result.get('level', 'Unknown')}")
+        print(f"Оценка: {final_result.get('score', 0):.3f}")
+        print(f"Процент: {final_result.get('percent', 0):.1f}%")
+        print(f"Частота обнаружения лица: {final_result.get('face_detection_rate', 0):.1%}")
+        print(f"Среднее время обработки кадра: {final_result.get('avg_processing_time', 0):.3f}s")
+        
+        cap.release()
+        cv2.destroyAllWindows()
+        analyzer.close()
+        
+    except Exception as e:
+        logger.error(f"Error in real-time test: {e}", exc_info=True)
+        print(f"Ошибка: {e}")
+
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['video', 'realtime'], required=True)
-    parser.add_argument('--input', help='Path to input video')
+    parser = argparse.ArgumentParser(description='Fatigue Analysis Tool')
+    parser.add_argument('--mode', choices=['video', 'realtime', 'test'], required=True,
+                       help='Analysis mode: video file, realtime camera, or test interface')
+    parser.add_argument('--input', help='Path to input video (for video mode)')
     parser.add_argument('--output', help='Path to output video')
     args = parser.parse_args()
     
-    if args.mode == 'video' and not args.input:
-        print("Error: Input video required")
-        exit(1)
+    if args.mode == 'test':
+        # Запуск интерактивного тестирования
+        real_time_test()
+    elif args.mode == 'video':
+        if not args.input:
+            print("Error: Input video required for video mode")
+            print("Usage: python predict.py --mode video --input path/to/video.mp4")
+            exit(1)
+            
+        level, percent, details = analyze_source(
+            source=args.input,
+            is_video_file=True,
+            output_file=args.output
+        )
         
-    level, percent, details = analyze_source(
-        source=args.input if args.mode == 'video' else 0,
-        is_video_file=args.mode == 'video',
-        output_file=args.output
-    )
-    
-    print(f"Fatigue Level: {level}")
-    print(f"Fatigue Percentage: {percent}%")
-    if 'error' in details and details['error']:
-        print(f"Error: {details['error']}")
+        print(f"Fatigue Level: {level}")
+        print(f"Fatigue Percentage: {percent}%")
+        if 'error' in details and details['error']:
+            print(f"Error: {details['error']}")
+    elif args.mode == 'realtime':
+        level, percent, details = analyze_source(
+            source=0,
+            is_video_file=False,
+            output_file=args.output
+        )
+        
+        print(f"Fatigue Level: {level}")
+        print(f"Fatigue Percentage: {percent}%")
+        if 'error' in details and details['error']:
+            print(f"Error: {details['error']}")
