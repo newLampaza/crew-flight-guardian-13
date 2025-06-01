@@ -20,9 +20,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# MediaPipe инициализация как в старой версии
+# MediaPipe инициализация ТОЧНО как в старой рабочей версии
 mp_face_detection = mp.solutions.face_detection
-FaceDetection = mp_face_detection.FaceDetection
+mp_drawing = mp.solutions.drawing_utils
 
 # Global analyzer instance for reuse
 _GLOBAL_ANALYZER = None
@@ -53,8 +53,8 @@ class FatigueAnalyzer:
         self.buffer_size = buffer_size
         
         try:
-            # Используем те же настройки что и в старой версии
-            self.face_detector = FaceDetection(min_detection_confidence=0.7)
+            # Используем ТОЧНО те же настройки что и в рабочей старой версии
+            self.face_detection = mp_face_detection.FaceDetection(min_detection_confidence=0.7)
             logger.info("MediaPipe face detector initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize MediaPipe: {e}")
@@ -66,15 +66,15 @@ class FatigueAnalyzer:
         self.processing_times = []
 
     def process_frame(self, frame: np.ndarray, show_visualization: bool = False) -> np.ndarray:
-        """Process frame exactly like in old version"""
+        """Process frame ТОЧНО как в старой рабочей версии"""
         start_time = time.time()
         self.total_frames += 1
         
-        # Convert to RGB for MediaPipe (как в старой версии)
+        # Convert to RGB for MediaPipe ТОЧНО как в старой версии
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         try:
-            results = self.face_detector.process(rgb_frame)
+            results = self.face_detection.process(rgb_frame)
         except Exception as e:
             logger.error(f"Face detection error on frame {self.total_frames}: {e}")
             return frame
@@ -90,6 +90,7 @@ class FatigueAnalyzer:
                     bbox = detection.location_data.relative_bounding_box
                     h, w = frame.shape[:2]
                     
+                    # ТОЧНО как в рабочей версии
                     x = int(bbox.xmin * w)
                     y = int(bbox.ymin * h)
                     width = int(bbox.width * w)
@@ -110,7 +111,7 @@ class FatigueAnalyzer:
                             
                             logger.debug(f"Fatigue prediction: {prediction:.3f}, buffer avg: {np.mean(self.buffer):.3f}")
                             
-                            # Визуализация как в старой версии
+                            # Визуализация ТОЧНО как в старой версии
                             if show_visualization:
                                 avg_score = np.mean(self.buffer) if self.buffer else prediction
                                 color = (0, 0, 255) if avg_score > 0.5 else (0, 255, 0)
@@ -140,7 +141,8 @@ class FatigueAnalyzer:
         return frame
 
     def _preprocess_face(self, face: np.ndarray) -> np.ndarray:
-        """Preprocess face exactly like old version"""
+        """Preprocess face ТОЧНО как в старой версии - 48x48 как в обучении"""
+        # ВАЖНО: размер 48x48 как модель была обучена
         face = cv2.resize(face, (48, 48))
         return face.astype(np.float32) / 255.0
 
@@ -187,11 +189,11 @@ class FatigueAnalyzer:
     def close(self):
         """Clean up resources"""
         logger.info("Closing FatigueAnalyzer")
-        if hasattr(self, 'face_detector'):
-            self.face_detector.close()
+        if hasattr(self, 'face_detection'):
+            self.face_detection.close()
 
 def analyze_source(source, is_video_file=False, output_file=None):
-    """Main analysis function with improved face detection"""
+    """Main analysis function - ТОЧНО как в старой рабочей версии"""
     logger.info(f"Starting analysis - Source: {source}, Video file: {is_video_file}")
     
     analyzer = None
@@ -213,7 +215,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
         
         out = None
         if output_file:
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Используем mp4v вместо XVID
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out = cv2.VideoWriter(output_file, fourcc, 20.0, 
                                 (frame_width, frame_height))
             logger.info(f"Output video writer initialized: {output_file}")
@@ -228,7 +230,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
                 break
                 
             frame_count += 1
-            processed = analyzer.process_frame(frame, show_visualization=True)  # Всегда показываем визуализацию
+            processed = analyzer.process_frame(frame, show_visualization=True)
             
             if output_file and out:
                 out.write(processed)
@@ -291,7 +293,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
             analyzer.close()
 
 def real_time_test():
-    """Функция для тестирования в реальном времени с улучшенной визуализацией"""
+    """Функция для тестирования в реальном времени ТОЧНО как в старой версии"""
     print("=== ТЕСТ АНАЛИЗА УСТАЛОСТИ В РЕАЛЬНОМ ВРЕМЕНИ ===")
     print("Инструкции:")
     print("- Убедитесь, что камера подключена")
@@ -311,7 +313,7 @@ def real_time_test():
             print("ОШИБКА: Не удалось открыть камеру")
             return
         
-        # Настройки камеры
+        # Настройки камеры как в старой версии
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         cap.set(cv2.CAP_PROP_FPS, 30)
@@ -332,7 +334,7 @@ def real_time_test():
             frame_count += 1
             fps_counter += 1
             
-            # Обрабатываем кадр с визуализацией
+            # Обрабатываем кадр с визуализацией ТОЧНО как в старой версии
             processed_frame = analyzer.process_frame(frame, show_visualization=True)
             
             # Добавляем информационную панель
