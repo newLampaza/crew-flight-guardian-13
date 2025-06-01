@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# MediaPipe инициализация ТОЧНО как в старой рабочей версии
+# MediaPipe инициализация с более мягкими настройками
 mp_face_detection = mp.solutions.face_detection
 mp_drawing = mp.solutions.drawing_utils
 
@@ -45,6 +45,8 @@ class FatigueAnalyzer:
         try:
             self.model = tf.keras.models.load_model(model_path)
             logger.info("Model loaded successfully")
+            logger.info(f"Model input shape: {self.model.input_shape}")
+            logger.info(f"Model output shape: {self.model.output_shape}")
         except Exception as e:
             logger.error(f"Failed to load model: {e}")
             raise
@@ -53,8 +55,11 @@ class FatigueAnalyzer:
         self.buffer_size = buffer_size
         
         try:
-            # Используем ТОЧНО те же настройки что и в рабочей старой версии
-            self.face_detection = mp_face_detection.FaceDetection(min_detection_confidence=0.7)
+            # Более мягкие настройки для лучшего обнаружения
+            self.face_detection = mp_face_detection.FaceDetection(
+                model_selection=0,  # 0 для близких лиц (2м), 1 для дальних (5м)
+                min_detection_confidence=0.5  # Снижаем порог для лучшего обнаружения
+            )
             logger.info("MediaPipe face detector initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize MediaPipe: {e}")
@@ -66,19 +71,24 @@ class FatigueAnalyzer:
         self.processing_times = []
 
     def process_frame(self, frame: np.ndarray, show_visualization: bool = False) -> np.ndarray:
-        """Process frame ТОЧНО как в старой рабочей версии"""
+        """Process frame with improved face detection"""
         start_time = time.time()
         self.total_frames += 1
         
-        # Convert to RGB for MediaPipe ТОЧНО как в старой версии
+        logger.debug(f"Processing frame {self.total_frames}, shape: {frame.shape}")
+        
+        # Convert BGR to RGB for MediaPipe (OpenCV uses BGR by default)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         try:
+            # Process with MediaPipe
             results = self.face_detection.process(rgb_frame)
+            logger.debug(f"MediaPipe processing completed for frame {self.total_frames}")
         except Exception as e:
             logger.error(f"Face detection error on frame {self.total_frames}: {e}")
             return frame
         
+        # Check if faces were detected
         if results.detections:
             self.last_face_time = time.time()
             self.face_detected_frames += 1
@@ -90,44 +100,57 @@ class FatigueAnalyzer:
                     bbox = detection.location_data.relative_bounding_box
                     h, w = frame.shape[:2]
                     
-                    # ТОЧНО как в рабочей версии
-                    x = int(bbox.xmin * w)
-                    y = int(bbox.ymin * h)
-                    width = int(bbox.width * w)
-                    height = int(bbox.height * h)
+                    # Конвертируем относительные координаты в абсолютные
+                    x = max(0, int(bbox.xmin * w))
+                    y = max(0, int(bbox.ymin * h))
+                    width = min(w - x, int(bbox.width * w))
+                    height = min(h - y, int(bbox.height * h))
                     
-                    # Обрезка координат как в старой версии
-                    x = max(0, x)
-                    y = max(0, y)
-                    width = min(w - x, width)
-                    height = min(h - y, height)
+                    logger.debug(f"Face bbox: x={x}, y={y}, w={width}, h={height}")
 
-                    if width > 10 and height > 10:
+                    if width > 20 and height > 20:  # Минимальный размер лица
                         try:
+                            # Извлекаем область лица
                             face_roi = frame[y:y+height, x:x+width]
+                            logger.debug(f"Face ROI shape: {face_roi.shape}")
+                            
+                            # Предобработка для модели (как при обучении)
                             processed = self._preprocess_face(face_roi)
+                            logger.debug(f"Processed face shape: {processed.shape}")
+                            
+                            # Предсказание модели
                             prediction = self.model.predict(processed[None, ...], verbose=0)[0][0]
                             self._update_buffer(prediction)
                             
                             logger.debug(f"Fatigue prediction: {prediction:.3f}, buffer avg: {np.mean(self.buffer):.3f}")
                             
-                            # Визуализация ТОЧНО как в старой версии
+                            # Визуализация
                             if show_visualization:
                                 avg_score = np.mean(self.buffer) if self.buffer else prediction
                                 color = (0, 0, 255) if avg_score > 0.5 else (0, 255, 0)
+                                
+                                # Рисуем прямоугольник вокруг лица
                                 cv2.rectangle(frame, (x, y), (x+width, y+height), color, 2)
+                                
+                                # Добавляем текст с результатом
                                 cv2.putText(frame, f"Fatigue: {avg_score:.2f}", 
                                            (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
                                 
+                                # Добавляем confidence score
+                                confidence = detection.score[0] if detection.score else 0
+                                cv2.putText(frame, f"Conf: {confidence:.2f}", 
+                                           (x, y+height+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                                
                         except Exception as e:
-                            logger.error(f"Processing error: {str(e)}")
+                            logger.error(f"Processing error for detection: {str(e)}")
                             continue
                         
                 except Exception as e:
                     logger.error(f"Detection processing error: {str(e)}")
                     continue
         else:
-            # Логика обработки отсутствия лица как в старой версии
+            logger.debug(f"No face detected in frame {self.total_frames}")
+            # Если долго нет лица, добавляем штрафной балл
             if time.time() - self.last_face_time > 2:
                 self.buffer.append(1.0)
                 logger.debug(f"No face detected for >2s, adding penalty score")
@@ -141,10 +164,27 @@ class FatigueAnalyzer:
         return frame
 
     def _preprocess_face(self, face: np.ndarray) -> np.ndarray:
-        """Preprocess face ТОЧНО как в старой версии - 48x48 как в обучении"""
-        # ВАЖНО: размер 48x48 как модель была обучена
+        """Preprocess face exactly as during training"""
+        logger.debug(f"Preprocessing face, original shape: {face.shape}")
+        
+        # Resize to 48x48 as model was trained
         face = cv2.resize(face, (48, 48))
-        return face.astype(np.float32) / 255.0
+        logger.debug(f"After resize: {face.shape}")
+        
+        # Convert to float32 and normalize to [0,1] as during training
+        face = face.astype(np.float32) / 255.0
+        logger.debug(f"After normalization: min={face.min():.3f}, max={face.max():.3f}")
+        
+        # If model expects grayscale but we have color, convert
+        if len(face.shape) == 3 and face.shape[2] == 3:
+            # Check if model expects grayscale (single channel)
+            expected_shape = self.model.input_shape
+            if len(expected_shape) == 4 and expected_shape[-1] == 1:
+                face = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+                face = np.expand_dims(face, axis=-1)
+                logger.debug(f"Converted to grayscale: {face.shape}")
+        
+        return face
 
     def _update_buffer(self, value: float):
         self.buffer.append(value)
@@ -193,7 +233,7 @@ class FatigueAnalyzer:
             self.face_detection.close()
 
 def analyze_source(source, is_video_file=False, output_file=None):
-    """Main analysis function - ТОЧНО как в старой рабочей версии"""
+    """Main analysis function"""
     logger.info(f"Starting analysis - Source: {source}, Video file: {is_video_file}")
     
     analyzer = None
@@ -293,7 +333,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
             analyzer.close()
 
 def real_time_test():
-    """Функция для тестирования в реальном времени ТОЧНО как в старой версии"""
+    """Функция для тестирования в реальном времени с улучшенной диагностикой"""
     print("=== ТЕСТ АНАЛИЗА УСТАЛОСТИ В РЕАЛЬНОМ ВРЕМЕНИ ===")
     print("Инструкции:")
     print("- Убедитесь, что камера подключена")
@@ -301,6 +341,7 @@ def real_time_test():
     print("- Обеспечьте хорошее освещение")
     print("- Нажмите 'q' для выхода")
     print("- Нажмите 's' для сохранения скриншота")
+    print("- Нажмите 'd' для включения отладочной информации")
     print("=" * 50)
     
     logger.info("Starting real-time fatigue analysis test")
@@ -313,15 +354,24 @@ def real_time_test():
             print("ОШИБКА: Не удалось открыть камеру")
             return
         
-        # Настройки камеры как в старой версии
+        # Настройки камеры
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         cap.set(cv2.CAP_PROP_FPS, 30)
+        
+        # Проверяем реальные настройки камеры
+        actual_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        actual_fps = cap.get(cv2.CAP_PROP_FPS)
+        
+        print(f"Камера инициализирована: {actual_width}x{actual_height} @ {actual_fps} FPS")
+        logger.info(f"Camera initialized: {actual_width}x{actual_height} @ {actual_fps} FPS")
         
         frame_count = 0
         fps_counter = 0
         fps_start_time = time.time()
         current_fps = 0
+        debug_mode = False
         
         print("Камера запущена. Смотрите в окно 'Fatigue Analysis Test'")
         
@@ -334,12 +384,12 @@ def real_time_test():
             frame_count += 1
             fps_counter += 1
             
-            # Обрабатываем кадр с визуализацией ТОЧНО как в старой версии
+            # Обрабатываем кадр с визуализацией
             processed_frame = analyzer.process_frame(frame, show_visualization=True)
             
             # Добавляем информационную панель
             h, w = processed_frame.shape[:2]
-            info_panel = np.zeros((120, w, 3), dtype=np.uint8)
+            info_panel = np.zeros((140, w, 3), dtype=np.uint8)
             
             # Получаем статистику
             current_score = np.mean(analyzer.buffer) if analyzer.buffer else 0
@@ -367,6 +417,11 @@ def real_time_test():
             cv2.putText(info_panel, f"Status: {status_text}", 
                        (w-200, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, status_color, 2)
             
+            # Debug режим
+            if debug_mode:
+                cv2.putText(info_panel, f"Debug: ON", 
+                           (w-200, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+            
             # Объединяем кадр и панель
             combined = np.vstack([processed_frame, info_panel])
             cv2.imshow('Fatigue Analysis Test', combined)
@@ -379,6 +434,14 @@ def real_time_test():
                 screenshot_name = f"fatigue_test_screenshot_{int(time.time())}.jpg"
                 cv2.imwrite(screenshot_name, combined)
                 print(f"Скриншот сохранен: {screenshot_name}")
+            elif key == ord('d'):
+                debug_mode = not debug_mode
+                if debug_mode:
+                    logger.setLevel(logging.DEBUG)
+                    print("DEBUG режим включен")
+                else:
+                    logger.setLevel(logging.INFO)
+                    print("DEBUG режим выключен")
         
         # Финальная статистика
         print("\n=== ФИНАЛЬНАЯ СТАТИСТИКА ===")
