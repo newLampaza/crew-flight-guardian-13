@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { StarRating } from './StarRating';
@@ -38,6 +37,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [videoAttempts, setVideoAttempts] = useState(0);
 
   const getFatigueLevel = (level?: string) => {
     switch (level?.toLowerCase()) {
@@ -58,7 +58,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     }
   };
 
-  // Format URL for video with rendered analysis results
+  // Improved video URL formatting
   const formatVideoUrl = (path?: string) => {
     if (!path) return '';
     
@@ -73,15 +73,22 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     // Use only the file name for simplified access via API
     const fileName = normalizedPath.split('/').pop();
     
-    // Form full URL to API endpoint
+    // Form full URL to API endpoint with cache busting
     const apiBase = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
-    return `${apiBase}/videos/${fileName}`;
+    const timestamp = Date.now();
+    return `${apiBase}/videos/${fileName}?t=${timestamp}`;
   };
 
   const reloadVideo = () => {
     if (videoRef.current && analysisResult?.video_path) {
       setIsLoading(true);
       setVideoError(null);
+      setVideoAttempts(prev => prev + 1);
+      
+      const videoUrl = formatVideoUrl(analysisResult.video_path);
+      console.log(`Reloading video (attempt ${videoAttempts + 1}):`, videoUrl);
+      
+      videoRef.current.src = videoUrl;
       videoRef.current.load();
     }
   };
@@ -96,6 +103,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
       videoRef.current.load();
       setIsLoading(true);
       setVideoError(null);
+      setVideoAttempts(0);
     }
   }, [analysisResult?.video_path]);
 
@@ -139,6 +147,30 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     
     return (analysisResult.fatigue_level === 'Unknown' && 
            analysisResult.neural_network_score === 0);
+  };
+
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    console.error("Video loading error:", e);
+    setIsLoading(false);
+    
+    const errorMsg = videoAttempts < 2 
+      ? "Не удалось загрузить видео. Попробуем ещё раз..."
+      : "Видео недоступно. Возможно, файл повреждён или сервер недоступен.";
+    
+    setVideoError(errorMsg);
+    
+    if (videoAttempts < 2) {
+      // Automatic retry after 2 seconds
+      setTimeout(() => {
+        reloadVideo();
+      }, 2000);
+    } else {
+      toast({
+        title: "Ошибка загрузки видео",
+        description: "Не удалось загрузить видеозапись после нескольких попыток.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -230,7 +262,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
               disabled={isLoading && !videoError}
             >
               <RefreshCcw className="h-4 w-4 mr-1" /> 
-              Обновить
+              Обновить ({videoAttempts}/3)
             </Button>
           </div>
           
@@ -248,17 +280,12 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
               aria-label="Видео с камеры для анализа усталости"
               playsInline
               crossOrigin="anonymous"
-              onLoadedData={() => setIsLoading(false)}
-              onError={(e) => {
-                console.error("Ошибка загрузки видео:", e);
+              onLoadedData={() => {
                 setIsLoading(false);
-                setVideoError("Не удалось загрузить видео. Проверьте путь и формат файла.");
-                toast({
-                  title: "Ошибка загрузки видео",
-                  description: "Не удалось загрузить видеозапись. Проверьте путь и формат файла.",
-                  variant: "destructive"
-                });
+                setVideoError(null);
+                console.log('Video loaded successfully');
               }}
+              onError={handleVideoError}
             />
             
             <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
@@ -285,6 +312,18 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
               <AlertCircle className="h-4 w-4" />
               <AlertDescription className="text-sm">
                 {videoError}
+                {videoAttempts >= 2 && (
+                  <div className="mt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={reloadVideo}
+                      className="text-xs"
+                    >
+                      Попробовать снова
+                    </Button>
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}

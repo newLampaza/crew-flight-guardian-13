@@ -1,4 +1,3 @@
-
 import os
 import uuid
 import traceback
@@ -214,8 +213,6 @@ def analyze_fatigue(current_user):
         if conn:
             conn.close()
 
-# ... keep existing code (other endpoints remain the same)
-
 @fatigue_bp.route('/history', methods=['GET'])
 @token_required
 def get_fatigue_history(current_user):
@@ -421,6 +418,93 @@ def analyze_flight(current_user):
     except Exception as e:
         fatigue_logger.error(f"[{request_id}] Flight analysis error: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@fatigue_bp.route('/save-recording', methods=['POST'])
+@token_required
+def save_recording(current_user):
+    request_id = str(uuid.uuid4())[:8]
+    fatigue_logger.info(f"[{request_id}] Saving recording for user {current_user['employee_id']}")
+    
+    conn = None
+    try:
+        if 'video' not in request.files:
+            fatigue_logger.warning(f"[{request_id}] No video file in request")
+            return jsonify({'error': 'No video file provided'}), 400
+            
+        video_file = request.files['video']
+        if not video_file or video_file.filename == '':
+            fatigue_logger.warning(f"[{request_id}] Invalid video file")
+            return jsonify({'error': 'Invalid video file'}), 400
+
+        # Get file extension and generate unique name
+        file_ext = video_file.filename.split('.')[-1].lower()
+        if not allowed_file(video_file.filename):
+            fatigue_logger.error(f"[{request_id}] Unsupported file format: {file_ext}")
+            return jsonify({'error': f'Unsupported format. Allowed: {ALLOWED_EXTENSIONS}'}), 400
+
+        # Generate filename for saved recording
+        unique_id = uuid.uuid4()
+        saved_name = f"saved_{unique_id}.{file_ext}"
+        saved_path = os.path.join(VIDEO_DIR, saved_name)
+
+        fatigue_logger.info(f"[{request_id}] Saving recording to: {saved_path}")
+
+        # Save the video file
+        video_file.save(saved_path)
+        
+        # Check file size
+        file_size = os.path.getsize(saved_path)
+        fatigue_logger.info(f"[{request_id}] Saved file size: {file_size} bytes")
+
+        if file_size == 0:
+            fatigue_logger.error(f"[{request_id}] Saved file is empty")
+            os.remove(saved_path)
+            return jsonify({'error': 'Saved video file is empty'}), 400
+
+        # Save record to database
+        conn = sqlite3.connect('database/database.db')
+        conn.row_factory = sqlite3.Row
+        
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO FatigueAnalysis 
+            (employee_id, flight_id, fatigue_level, 
+             neural_network_score, analysis_date, video_path)
+            VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)
+        ''', (
+            current_user['employee_id'],
+            None,  # No flight associated with saved recording
+            'Saved',  # Special marker for saved recordings
+            0.0,  # No analysis score for saved recordings
+            saved_name
+        ))
+        conn.commit()
+        record_id = cursor.lastrowid
+        
+        fatigue_logger.info(f"[{request_id}] Recording saved to database with ID: {record_id}")
+        
+        return jsonify({
+            'status': 'success',
+            'record_id': record_id,
+            'video_path': saved_name,
+            'message': 'Recording saved successfully'
+        }), 201
+
+    except Exception as e:
+        fatigue_logger.error(f"[{request_id}] Save recording error: {traceback.format_exc()}")
+        
+        # Clean up file if it was created
+        if 'saved_path' in locals() and os.path.exists(saved_path):
+            os.remove(saved_path)
+            fatigue_logger.info(f"[{request_id}] Cleaned up file after error")
+            
+        return jsonify({
+            'error': 'Failed to save recording',
+            'details': str(e)
+        }), 500
     finally:
         if conn:
             conn.close()
