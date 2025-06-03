@@ -1,47 +1,30 @@
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
-import { 
-  Brain, 
-  Activity, 
-  Clock, 
-  AlertTriangle,
-  CheckCircle2,
-  BatteryMedium,
-  Timer,
-  Eye,
-  Coffee,
-  LineChart as LineChartIcon,
-  FlaskConical,
-  Scale,
-} from "lucide-react";
-
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend,
-  ResponsiveContainer,
-  Area,
-  AreaChart
-} from "recharts";
+import { Brain, Activity } from "lucide-react";
 
 // Import our components
 import { VideoRecorder } from "@/components/fatigue-analysis/VideoRecorder";
 import { FlightAnalyzer } from "@/components/fatigue-analysis/FlightAnalyzer";
 import { AnalysisResult } from "@/components/fatigue-analysis/AnalysisResult";
 import { AnalysisProgress } from "@/components/fatigue-analysis/AnalysisProgress";
-import { FatigueIndicator } from "@/components/fatigue-analysis/FatigueIndicator";
+import { FatigueStats } from "@/components/fatigue-analysis/FatigueStats";
+import { FatigueTrendChart } from "@/components/fatigue-analysis/FatigueTrendChart";
+import { FatigueStatusCard } from "@/components/fatigue-analysis/FatigueStatusCard";
 import { useMediaRecorder } from "@/hooks/useMediaRecorder";
 import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
 
-// Sample data
+import { 
+  BatteryMedium,
+  Timer,
+  Eye,
+  Coffee,
+} from "lucide-react";
+
+// Sample data for charts
 const monthlyFatigueData = [
   { date: "1 апр", усталость: 45, внимательность: 85, сон: 75 },
   { date: "4 апр", усталость: 50, внимательность: 80, сон: 70 },
@@ -56,7 +39,7 @@ const monthlyFatigueData = [
   { date: "30 апр", усталость: 68, внимательность: 62, сон: 60 }
 ];
 
-const indicators = [
+const fatigueStats = [
   { 
     id: 1, 
     name: "Уровень усталости", 
@@ -64,7 +47,8 @@ const indicators = [
     status: "warning" as const,
     icon: BatteryMedium,
     change: "+5%",
-    details: "Повышенный уровень усталости"
+    details: "Повышенный уровень усталости",
+    unit: "%"
   },
   { 
     id: 2, 
@@ -82,7 +66,8 @@ const indicators = [
     status: "success" as const,
     icon: Eye,
     change: "-2%",
-    details: "В пределах нормы"
+    details: "В пределах нормы",
+    unit: "%"
   },
   { 
     id: 4, 
@@ -95,19 +80,10 @@ const indicators = [
   }
 ];
 
-// Sample history data
-const sampleHistoryData = [
-  { analysis_id: 1, neural_network_score: 0.65, analysis_date: "15 апр 2025, 14:30" },
-  { analysis_id: 2, neural_network_score: 0.48, analysis_date: "12 апр 2025, 09:15" },
-  { analysis_id: 3, neural_network_score: 0.72, analysis_date: "8 апр 2025, 18:22" },
-  { analysis_id: 4, neural_network_score: 0.35, analysis_date: "5 апр 2025, 11:45" }
-];
-
 const FatigueAnalysisPage = () => {
   const [analysisMode, setAnalysisMode] = useState<'realtime' | 'flight' | null>(null);
   const [feedbackScore, setFeedbackScore] = useState(3);
-  const [historyData, setHistoryData] = useState(sampleHistoryData);
-  const [lastFlight, setLastFlight] = useState({
+  const [lastFlight] = useState({
     flight_id: 1,
     from_code: "SVO",
     to_code: "LED",
@@ -121,16 +97,14 @@ const FatigueAnalysisPage = () => {
     setAnalysisResult, 
     recordedBlob,
     analysisProgress, 
+    historyData,
     submitRecording, 
     analyzeFlight,
-    saveToHistory,
+    submitFeedback,
+    loadHistory,
     formatDate
   } = useFatigueAnalysis((result) => {
-    setHistoryData(prev => [{
-      analysis_id: result.analysis_id || Math.floor(Math.random() * 1000) + 1,
-      neural_network_score: result.neural_network_score || Math.random(),
-      analysis_date: formatDate(result.analysis_date || new Date().toISOString())
-    }, ...prev]);
+    console.log('Analysis completed:', result);
   });
   
   const { 
@@ -145,8 +119,13 @@ const FatigueAnalysisPage = () => {
     onRecordingComplete: submitRecording 
   });
 
+  // Load history on mount
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
   // Handle feedback submission
-  const submitFeedback = async () => {
+  const handleSubmitFeedback = async () => {
     if (!analysisResult?.analysis_id) {
       toast({
         title: "Ошибка",
@@ -156,41 +135,23 @@ const FatigueAnalysisPage = () => {
       return;
     }
     
-    try {
-      toast({
-        title: "Отзыв сохранен",
-        description: `Спасибо за вашу оценку: ${feedbackScore} из 5`
-      });
-      
-      // Close dialog and reset state
+    const success = await submitFeedback(analysisResult.analysis_id, feedbackScore);
+    if (success) {
       setAnalysisResult(null);
       setAnalysisMode(null);
-      cleanup(); // Clean up media recorder
-      
-    } catch (error) {
-      toast({
-        title: "Ошибка отправки отзыва",
-        description: error instanceof Error ? error.message : "Неизвестная ошибка",
-        variant: "destructive"
-      });
+      cleanup();
     }
   };
 
   const handleAnalyzeFlight = () => {
     analyzeFlight(lastFlight);
   };
-  
-  const handleSaveRecording = (blob: Blob) => {
-    saveToHistory(blob);
-  };
 
-  // Close dialog handler with cleanup
   const handleCloseDialog = () => {
     setAnalysisMode(null);
     cleanup();
   };
 
-  // Close results dialog handler
   const handleCloseResults = () => {
     setAnalysisResult(null);
     setAnalysisMode(null);
@@ -217,183 +178,59 @@ const FatigueAnalysisPage = () => {
         </Button>
       </div>
 
-      {/* Indicators Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {indicators.map(indicator => (
-          <Card key={`indicator-${indicator.id}`} className="hover:shadow-lg transition-all duration-200">
-            <CardContent className="p-0">
-              <FatigueIndicator indicator={indicator} />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Stats Grid */}
+      <FatigueStats stats={fatigueStats} />
 
       {/* Charts & Status Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 hover:shadow-lg transition-all duration-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <LineChartIcon className="h-5 w-5 text-primary" />
-              Динамика показателей
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[350px] mt-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={monthlyFatigueData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="colorУсталость" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorВнимательность" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorСон" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#888888"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="#888888"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `${value}%`}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(0, 0, 0, 0.05)',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="усталость"
-                    stroke="#0ea5e9"
-                    strokeWidth={2}
-                    fill="url(#colorУсталость)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="внимательность"
-                    stroke="#22c55e"
-                    strokeWidth={2}
-                    fill="url(#colorВнимательность)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="сон"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    fill="url(#colorСон)"
-                  />
-                  <Legend />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-2">
+          <FatigueTrendChart data={monthlyFatigueData} />
+        </div>
 
-        {/* Status Cards */}
+        {/* Status and History */}
         <div className="space-y-6">
-          <Card className="hover:shadow-lg transition-all duration-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FlaskConical className="h-5 w-5 text-primary" />
-                Текущий статус
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center space-y-6">
-                <div className="relative w-32 h-32">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="56"
-                      stroke="currentColor"
-                      strokeWidth="16"
-                      fill="none"
-                      className="text-muted/20"
-                    />
-                    <circle
-                      cx="64"
-                      cy="64"
-                      r="56"
-                      stroke="currentColor"
-                      strokeWidth="16"
-                      fill="none"
-                      strokeDasharray={351.8583}
-                      strokeDashoffset={351.8583 - (351.8583 * 65) / 100}
-                      className="text-amber-500 transition-all duration-1000"
-                    />
-                  </svg>
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                    <span className="text-3xl font-bold">65%</span>
-                    <span className="text-xs block text-muted-foreground">Усталость</span>
-                  </div>
-                </div>
-                
-                <div className="w-full space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center">
-                      <AlertTriangle className="h-4 w-4 text-amber-500 mr-1" />
-                      <span>Требует внимания</span>
-                    </div>
-                    <Scale className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 text-muted-foreground mr-1" />
-                      <span>Обновлено 5 мин назад</span>
-                    </div>
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <FatigueStatusCard fatigueLevel={65} />
 
           {/* History Card */}
           <Card className="hover:shadow-lg transition-all duration-200 overflow-hidden">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-2 mb-4">
                 <Activity className="h-5 w-5 text-primary" />
-                История анализов
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+                <h3 className="font-medium">История анализов</h3>
+              </div>
               <div className="space-y-3">
-                {historyData.slice(0, 3).map((item) => (
-                  <div key={`history-${item.analysis_id}`} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-900 rounded-md">
-                    <div className="flex items-center gap-2">
+                {historyData.slice(0, 5).map((item) => (
+                  <div key={`history-${item.analysis_id}`} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-md">
+                    <div className="flex items-center gap-3">
                       <div className={`w-3 h-3 rounded-full ${
                         (item.neural_network_score || 0) > 0.7 ? 'bg-rose-500' : 
                         (item.neural_network_score || 0) > 0.4 ? 'bg-amber-500' : 
                         'bg-emerald-500'
                       }`} />
-                      <span className="text-sm">{item.analysis_date}</span>
+                      <div>
+                        <div className="text-sm font-medium">#{item.analysis_id}</div>
+                        <div className="text-xs text-muted-foreground">{item.analysis_date}</div>
+                      </div>
                     </div>
-                    <span className="font-medium">
-                      {Math.round((item.neural_network_score || 0) * 100)}%
-                    </span>
+                    <div className="text-right">
+                      <div className="font-medium">
+                        {Math.round((item.neural_network_score || 0) * 100)}%
+                      </div>
+                      {item.fatigue_level && (
+                        <div className="text-xs text-muted-foreground">
+                          {item.fatigue_level === 'High' ? 'Высокий' :
+                           item.fatigue_level === 'Medium' ? 'Средний' :
+                           item.fatigue_level === 'Low' ? 'Низкий' : 'Неизвестно'}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
+                {historyData.length === 0 && (
+                  <div className="text-sm text-muted-foreground text-center py-4">
+                    Нет данных анализов
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -420,7 +257,6 @@ const FatigueAnalysisPage = () => {
               cameraError={cameraError}
               videoRef={videoRef}
               recordedBlob={recordedBlob || undefined}
-              saveToHistory={handleSaveRecording}
             />
 
             <FlightAnalyzer
@@ -430,7 +266,6 @@ const FatigueAnalysisPage = () => {
             />
           </div>
           
-          {/* Analysis loading overlay */}
           <AnalysisProgress
             loading={analysisProgress.loading}
             message={analysisProgress.message}
@@ -455,7 +290,7 @@ const FatigueAnalysisPage = () => {
               feedbackScore={feedbackScore}
               setFeedbackScore={setFeedbackScore}
               onClose={handleCloseResults}
-              onSubmitFeedback={submitFeedback}
+              onSubmitFeedback={handleSubmitFeedback}
             />
           )}
         </DialogContent>

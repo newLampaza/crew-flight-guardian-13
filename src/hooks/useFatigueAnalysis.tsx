@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import axios from 'axios';
@@ -13,6 +14,9 @@ interface AnalysisResult {
   to_code?: string;
   resolution?: string;
   fps?: number;
+  face_detection_ratio?: number;
+  frames_analyzed?: number;
+  error?: string;
 }
 
 interface Flight {
@@ -23,9 +27,15 @@ interface Flight {
   video_path?: string;
 }
 
+interface HistoryItem {
+  analysis_id: number;
+  neural_network_score: number;
+  analysis_date: string;
+  fatigue_level?: string;
+}
+
 const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
 
-// Configure axios instance with proper base URL and auth token
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -33,14 +43,11 @@ const apiClient = axios.create({
   }
 });
 
-// Add authentication token to each request
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('fatigue-guard-token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-    } else {
-      console.warn('No authentication token available for API request');
     }
     return config;
   },
@@ -58,6 +65,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
     message: '',
     percent: 0,
   });
+  const [historyData, setHistoryData] = useState<HistoryItem[]>([]);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'N/A';
@@ -70,6 +78,47 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
     });
   };
 
+  const loadHistory = async () => {
+    try {
+      const response = await apiClient.get('/fatigue/history');
+      if (response.data) {
+        setHistoryData(response.data.map((item: any) => ({
+          analysis_id: item.analysis_id,
+          neural_network_score: item.neural_network_score || 0,
+          analysis_date: formatDate(item.analysis_date),
+          fatigue_level: item.fatigue_level
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load history:', error);
+    }
+  };
+
+  const submitFeedback = async (analysisId: number, score: number) => {
+    try {
+      await apiClient.post('/feedback/submit', {
+        analysis_id: analysisId,
+        feedback_score: score,
+        feedback_type: 'fatigue_analysis'
+      });
+      
+      toast({
+        title: "Отзыв сохранен",
+        description: `Спасибо за вашу оценку: ${score} из 5`
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+      toast({
+        title: "Ошибка отправки отзыва",
+        description: "Не удалось сохранить отзыв",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
   const submitRecording = async (blob: Blob) => {
     try {
       setRecordedBlob(blob);
@@ -79,12 +128,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 20,
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setAnalysisProgress(p => ({...p, percent: 40, message: 'Загрузка на сервер...'}));
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       if (!blob || blob.size === 0) {
         throw new Error('Записанное видео слишком короткое или повреждено');
       }
@@ -98,258 +141,93 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 60,
       });
 
-      console.log('Submitting video to API:', `${API_BASE_URL}/fatigue/analyze`);
-      console.log('Current auth token:', localStorage.getItem('fatigue-guard-token'));
-      
-      // Реальный запрос к API
-      try {
-        // Используем apiClient с интерсепторами аутентификации
-        const response = await apiClient.post('/fatigue/analyze', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
-            setAnalysisProgress(p => ({
-              ...p,
-              percent: 40 + Math.min(percentCompleted / 2, 40), // от 40% до 80%
-            }));
-          }
-        });
-
-        setAnalysisProgress({
-          loading: false,
-          message: '',
-          percent: 100,
-        });
-
-        if (response.data) {
-          console.log('API Response:', response.data);
-          setAnalysisResult(response.data);
-          if (onSuccess) onSuccess(response.data);
-        }
-      } catch (apiError: any) {
-        console.error('API Error:', apiError);
-        
-        if (apiError.response?.status === 401) {
-          toast({
-            title: "Ошибка авторизации",
-            description: "Необходимо выполнить вход в систему. Перенаправление на страницу входа...",
-            variant: "destructive"
-          });
-          
-          // Если ошибка авторизации, перенаправляем на страницу входа
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 2000);
-          return;
-        }
-        
-        // Проверяем, является ли это ошибкой "лицо не обнаружено"
-        if (apiError.response?.status === 400 && apiError.response?.data?.error?.includes('face')) {
-          setAnalysisProgress({loading: false, message: '', percent: 0});
-          
-          toast({
-            title: "Лицо не обнаружено",
-            description: "Попробуйте записать видео с лучшим освещением, расположив лицо по центру кадра",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        toast({
-          title: "Ошибка соединения с API",
-          description: `${apiError.message}. Проверьте что сервер запущен на порту 5000. Временно используем демо-данные.`,
-          variant: "destructive"
-        });
-        
-        // Фолбек - генерируем результат для демо, если API недоступен
-        setTimeout(() => {
-          setAnalysisProgress({loading: false, message: '', percent: 0});
-          
-          const mockResult = {
-            analysis_id: Math.floor(Math.random() * 1000) + 1,
-            fatigue_level: Math.random() > 0.6 ? 'High' : Math.random() > 0.3 ? 'Medium' : 'Low',
-            neural_network_score: Math.random(),
-            analysis_date: formatDate(new Date().toISOString()),
-            video_path: '/videos/test.mp4'
-          };
-          
-          setAnalysisResult(mockResult);
-          if (onSuccess) onSuccess(mockResult);
-          
-          toast({
-            title: "Демо-режим",
-            description: "API недоступно. Запустите Flask сервер на порту 5000.",
-            variant: "default"
-          });
-        }, 1000);
-      }
-      
-    } catch (error) {
-      setAnalysisProgress({loading: false, message: '', percent: 0});
-      toast({
-        title: "Ошибка анализа",
-        description: error instanceof Error ? error.message : "Неизвестная ошибка",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const saveToHistory = async (blob: Blob) => {
-    try {
-      setAnalysisProgress({
-        loading: true,
-        message: 'Сохранение записи...',
-        percent: 50,
-      });
-
-      const formData = new FormData();
-      formData.append('video', blob, `history_${Date.now()}.webm`);
-      
-      try {
-        console.log('Saving video to API:', `${API_BASE_URL}/fatigue/save-recording`);
-        
-        // Сохраняем запись в базу данных
-        const response = await apiClient.post('/fatigue/save-recording', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          }
-        });
-        
-        setAnalysisProgress({loading: false, message: '', percent: 0});
-        
-        toast({
-          title: "Запись сохранена",
-          description: "Видео успешно сохранено в базе данных"
-        });
-        return response.data;
-      } catch (apiError: any) {
-        console.error('Save API Error:', apiError);
-        setAnalysisProgress({loading: false, message: '', percent: 0});
-        
-        if (apiError.response?.status === 401) {
-          toast({
-            title: "Ошибка авторизации",
-            description: "Необходимо выполнить вход в систему",
-            variant: "destructive"
-          });
-          return null;
-        }
-        
-        toast({
-          title: "Ошибка сохранения",
-          description: `Не удалось сохранить запись: ${apiError.message}`,
-          variant: "destructive"
-        });
-        return null;
-      }
-      
-    } catch (error) {
-      setAnalysisProgress({loading: false, message: '', percent: 0});
-      toast({
-        title: "Ошибка сохранения",
-        description: error instanceof Error ? error.message : "Неизвестная ошибка",
-        variant: "destructive"
-      });
-      return null;
-    }
-  };
-
-  const analyzeFlight = async (lastFlight?: Flight | null) => {
-    try {
-      setAnalysisProgress({
-        loading: true,
-        message: 'Подготовка к анализу рейса...',
-        percent: 20,
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setAnalysisProgress(p => ({...p, percent: 40, message: 'Загрузка видео рейса...'}));
-
-      try {
-        console.log('Analyzing flight with API:', `${API_BASE_URL}/fatigue/analyze-flight`, lastFlight);
-        
-        // Реальный запрос к API для анализа последнего рейса
-        const response = await apiClient.post('/fatigue/analyze-flight', {
-          flight_id: lastFlight?.flight_id,
-        });
-
-        setAnalysisProgress({loading: false, message: '', percent: 100});
-
-        console.log('Flight analysis response:', response.data);
-        
-        if (response.data) {
-          setAnalysisResult(response.data);
-          if (onSuccess) onSuccess(response.data);
-          return;
-        }
-      } catch (apiError: any) {
-        console.error('API Error:', apiError);
-        
-        if (apiError.response?.status === 401) {
-          toast({
-            title: "Ошибка авторизации",
-            description: "Необходимо выполнить вход в систему",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        toast({
-          title: "Ошибка соединения с API",
-          description: `${apiError.message}. Проверьте что сервер запущен на порту 5000. Временно используем демо-данные.`,
-          variant: "destructive"
-        });
-        
-        // Фолбек для демо-режима
-        setAnalysisProgress({
-          loading: true,
-          message: 'Анализ нейросетью...',
-          percent: 80,
-        });
-
-        const interval = setInterval(() => {
+      const response = await apiClient.post('/fatigue/analyze', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
           setAnalysisProgress(p => ({
             ...p,
-            percent: Math.min(p.percent + 1, 95),
+            percent: 40 + Math.min(percentCompleted / 2, 40),
           }));
-        }, 100);
+        }
+      });
 
-        setTimeout(() => {
-          clearInterval(interval);
-          setAnalysisProgress(p => ({...p, percent: 100}));
-          setTimeout(() => {
-            setAnalysisProgress({loading: false, message: '', percent: 0});
-            
-            const mockResult = {
-              analysis_id: Math.floor(Math.random() * 1000) + 1,
-              fatigue_level: Math.random() > 0.6 ? 'High' : Math.random() > 0.3 ? 'Medium' : 'Low',
-              neural_network_score: Math.random(),
-              analysis_date: formatDate(new Date().toISOString()),
-              from_code: lastFlight?.from_code,
-              to_code: lastFlight?.to_code,
-              video_path: lastFlight?.video_path
-            };
-            
-            setAnalysisResult(mockResult);
-            if (onSuccess) onSuccess(mockResult);
-            
-            toast({
-              title: "Демо-режим",
-              description: "API недоступно. Запустите Flask сервер на порту 5000.",
-              variant: "default"
-            });
-          }, 500);
-        }, 2000);
+      setAnalysisProgress({
+        loading: false,
+        message: '',
+        percent: 100,
+      });
+
+      if (response.data) {
+        setAnalysisResult(response.data);
+        if (onSuccess) onSuccess(response.data);
+        await loadHistory(); // Обновляем историю после анализа
       }
+      
+    } catch (error: any) {
+      setAnalysisProgress({loading: false, message: '', percent: 0});
+      
+      if (error.response?.status === 401) {
+        toast({
+          title: "Ошибка авторизации",
+          description: "Необходимо выполнить вход в систему",
+          variant: "destructive"
+        });
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+        return;
+      }
+      
+      if (error.response?.status === 400 && error.response?.data?.error?.includes('face')) {
+        const faceErrorResult = {
+          analysis_id: Math.floor(Math.random() * 1000) + 1,
+          fatigue_level: 'Unknown',
+          neural_network_score: 0,
+          analysis_date: new Date().toISOString(),
+          face_detection_ratio: 0,
+          error: error.response.data.error
+        };
+        setAnalysisResult(faceErrorResult);
+        if (onSuccess) onSuccess(faceErrorResult);
+        return;
+      }
+      
+      toast({
+        title: "Ошибка анализа",
+        description: error.message || "Неизвестная ошибка",
+        variant: "destructive"
+      });
+    }
+  };
 
-    } catch (error) {
+  const analyzeFlight = async (flight?: Flight | null) => {
+    try {
+      setAnalysisProgress({
+        loading: true,
+        message: 'Анализ рейса...',
+        percent: 40,
+      });
+
+      const response = await apiClient.post('/fatigue/analyze-flight', {
+        flight_id: flight?.flight_id,
+      });
+
+      setAnalysisProgress({loading: false, message: '', percent: 100});
+
+      if (response.data) {
+        setAnalysisResult(response.data);
+        if (onSuccess) onSuccess(response.data);
+        await loadHistory();
+      }
+      
+    } catch (error: any) {
       setAnalysisProgress({loading: false, message: '', percent: 0});
       toast({
         title: "Ошибка анализа рейса",
-        description: error instanceof Error ? error.message : "Неизвестная ошибка",
+        description: error.message || "Неизвестная ошибка",
         variant: "destructive"
       });
     }
@@ -360,9 +238,11 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
     setAnalysisResult,
     recordedBlob,
     analysisProgress,
+    historyData,
     submitRecording,
     analyzeFlight,
-    saveToHistory,
+    submitFeedback,
+    loadHistory,
     formatDate
   };
 };
