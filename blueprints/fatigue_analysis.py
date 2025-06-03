@@ -10,7 +10,7 @@ from datetime import datetime
 from neural_network.predict import analyze_source
 from blueprints.auth import token_required
 
-# Configure detailed logging for fatigue analysis
+# Setup logging
 fatigue_logger = logging.getLogger('fatigue_analysis')
 fatigue_logger.setLevel(logging.INFO)
 
@@ -429,6 +429,7 @@ def save_recording(current_user):
     fatigue_logger.info(f"[{request_id}] Saving recording for user {current_user['employee_id']}")
     
     conn = None
+    saved_path = None
     try:
         if 'video' not in request.files:
             fatigue_logger.warning(f"[{request_id}] No video file in request")
@@ -464,7 +465,7 @@ def save_recording(current_user):
             os.remove(saved_path)
             return jsonify({'error': 'Saved video file is empty'}), 400
 
-        # Save record to database
+        # Save record to database with corrected values
         conn = sqlite3.connect('database/database.db')
         conn.row_factory = sqlite3.Row
         
@@ -477,7 +478,7 @@ def save_recording(current_user):
         ''', (
             current_user['employee_id'],
             None,  # No flight associated with saved recording
-            'Saved',  # Special marker for saved recordings
+            'Saved',  # Now this value is allowed in CHECK constraint
             0.0,  # No analysis score for saved recordings
             saved_name
         ))
@@ -497,7 +498,7 @@ def save_recording(current_user):
         fatigue_logger.error(f"[{request_id}] Save recording error: {traceback.format_exc()}")
         
         # Clean up file if it was created
-        if 'saved_path' in locals() and os.path.exists(saved_path):
+        if saved_path and os.path.exists(saved_path):
             os.remove(saved_path)
             fatigue_logger.info(f"[{request_id}] Cleaned up file after error")
             

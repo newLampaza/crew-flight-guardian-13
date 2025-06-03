@@ -97,13 +97,13 @@ CREATE TABLE IF NOT EXISTS FatigueVideos (
 )
 ''')
 
-# Fatigue Analysis table with detailed metrics - FIXED the CHECK constraint
+# Fatigue Analysis table with detailed metrics - UPDATED CHECK constraint to include 'Saved'
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS FatigueAnalysis (
     analysis_id INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id INTEGER,
     flight_id INTEGER,
-    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High', 'Unknown')),
+    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High', 'Unknown', 'Saved')),
     neural_network_score REAL,
     feedback_score REAL,
     analysis_date TEXT,
