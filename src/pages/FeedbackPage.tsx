@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { MessageSquare, Star, Clock, AlertCircle } from "lucide-react";
 import { StarRating } from "@/components/fatigue-analysis/StarRating";
 import { useFeedback } from "@/hooks/useFeedback";
+import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -20,6 +21,7 @@ const FeedbackPage = () => {
   const [selectedFlightId, setSelectedFlightId] = useState<number | null>(null);
   const { feedbackHistory, isLoading, submitFeedback, hasFeedbackForEntity } = useFeedback();
   const { data: flights = [], isLoading: flightsLoading } = useFlights();
+  const { saveToHistory, recordedBlob } = useFatigueAnalysis();
 
   const hasExistingFeedback = (flightId: number) => {
     return hasFeedbackForEntity('flight', flightId);
@@ -61,41 +63,23 @@ const FeedbackPage = () => {
   
   const currentFlightHasFeedback = selectedFlightId ? hasExistingFeedback(selectedFlightId) : false;
 
-  //Блок отзывов более недели
-  // useEffect(() => {
-  //   if (!flights?.length || !submitFeedback) return;
-
-  //   const now = new Date();
-  //   const oneWeekAgo = new Date(now);
-  //   oneWeekAgo.setDate(now.getDate() - 7);
-
-  //   const flight = flights.find(flight => {
-  //     const arrivalDate = new Date(flight.arrival_time);
-  //     return arrivalDate < oneWeekAgo && !hasExistingFeedback(flight.flight_id);
-  //   });
-
-  //   if (flight) {
-  //     console.log(`Auto-submitting feedback for old flight: ${flight.flight_id}`);
-  //     submitFeedback({
-  //       entityType: "flight",
-  //       entityId: flight.flight_id,
-  //       rating: 5,
-  //       comments: ""
-  //     });
-  //   }
-  // }, [flights, feedbackHistory, submitFeedback]);
-
   const availableFlights = flights?.filter(flight => {
     const arrivalDate = new Date(flight.arrival_time);
     const now = new Date();
     return arrivalDate < now && isInCurrentWeek(arrivalDate) && !hasExistingFeedback(flight.flight_id);
   }) || [];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!feedbackText || flightRating === 0 || !selectedFlightId) {
       return;
+    }
+    
+    // Автоматически сохраняем запись при отправке отзыва
+    if (recordedBlob) {
+      console.log('Auto-saving recording with feedback submission');
+      await saveToHistory(recordedBlob);
     }
     
     submitFeedback({
@@ -133,7 +117,7 @@ const FeedbackPage = () => {
                 Отзыв о полете
               </CardTitle>
               <CardDescription>
-                Выберите рейс для отправки отзыва
+                Выберите рейс для отправки отзыва. Запись автоматически сохранится при отправке.
               </CardDescription>
               <div className="space-y-4 mt-2">
                 {!flightsLoading && flights.length > 0 ? (
@@ -208,12 +192,12 @@ const FeedbackPage = () => {
                     className="w-full"
                     disabled={!feedbackText || flightRating === 0 || currentFlightHasFeedback || availableFlights.length === 0}
                   >
-                    Отправить отзыв
+                    Отправить отзыв и сохранить запись
                   </Button>
                   
                   <p className="text-xs text-muted-foreground text-center">
                     Рейсы доступны для оценки в течение недели после завершения. 
-                    Неоцененные рейсы автоматически получат 5 звезд.
+                    Запись будет автоматически сохранена при отправке отзыва.
                   </p>
                 </div>
               </CardFooter>
