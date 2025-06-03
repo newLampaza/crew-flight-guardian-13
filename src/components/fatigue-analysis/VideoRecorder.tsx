@@ -1,10 +1,11 @@
 
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Video, Save, Download, Lightbulb, Eye, AlertCircle } from 'lucide-react';
+import { Video, Save, Download, Lightbulb, Eye, AlertCircle, Timer } from 'lucide-react';
 
 interface VideoRecorderProps {
   recording: boolean;
+  timeLeft?: number;
   onStartRecording: () => void;
   onStopRecording: () => void;
   analysisResult: any;
@@ -16,6 +17,7 @@ interface VideoRecorderProps {
 
 export const VideoRecorder: React.FC<VideoRecorderProps> = ({
   recording,
+  timeLeft = 0,
   onStartRecording,
   onStopRecording,
   analysisResult,
@@ -24,7 +26,6 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
   recordedBlob,
   saveToHistory
 }) => {
-  // Function to download recorded video
   const handleDownloadVideo = () => {
     if (!recordedBlob) return;
     
@@ -38,27 +39,33 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Function to save the recorded video to database
   const handleSaveToHistory = () => {
     if (recordedBlob && saveToHistory) {
       saveToHistory(recordedBlob);
     }
   };
 
-  const recorderDescription = "Запись и анализ видео для определения уровня усталости пилота";
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
-    <div 
-      className="p-6 border rounded-lg transition-all duration-200 border-primary bg-primary/5"
-      aria-describedby="video-recorder-description"
-    >
+    <div className="p-6 border rounded-lg transition-all duration-200 border-primary bg-primary/5">
       <div className="flex items-center gap-3 mb-4">
         <Video className="h-5 w-5 text-primary" />
         <h3 className="text-lg font-medium">Реальный анализ</h3>
+        {recording && timeLeft > 0 && (
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <Timer className="h-4 w-4" />
+            <span>{formatTime(timeLeft)}</span>
+          </div>
+        )}
       </div>
       
-      <p id="video-recorder-description" className="text-sm text-muted-foreground mb-4">
-        {recorderDescription}
+      <p className="text-sm text-muted-foreground mb-4">
+        Запись и анализ видео для определения уровня усталости пилота
       </p>
 
       {/* Recording Tips */}
@@ -83,7 +90,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
       {recording ? (
         <Button variant="destructive" onClick={onStopRecording} className="w-full mb-4">
           Остановить запись
-          {recording && <span className="ml-2 inline-block animate-pulse text-white">●</span>}
+          <span className="ml-2 inline-block animate-pulse text-white">●</span>
         </Button>
       ) : (
         <Button onClick={onStartRecording} className="w-full mb-4">
@@ -91,28 +98,27 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
         </Button>
       )}
       
-      {/* Larger camera display with smooth transition */}
-      <div 
-        className={`mt-4 transition-all duration-500 ease-in-out transform ${
+      {/* Camera display */}
+      <div className={`mt-4 transition-all duration-500 ease-in-out transform ${
           recording ? 'opacity-100 scale-100 max-h-[50vh]' : 'opacity-0 scale-95 max-h-0 overflow-hidden'
-        }`}
-      >
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          muted 
-          playsInline 
-          className="w-full rounded-md bg-black aspect-video shadow-lg"
-          aria-label="Видео с камеры для анализа усталости"
-        />
-        
-        {/* Recording indicator overlay */}
-        {recording && (
-          <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
-            <span className="animate-pulse">●</span>
-            REC
-          </div>
-        )}
+        }`}>
+        <div className="relative">
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            muted 
+            playsInline 
+            className="w-full rounded-md bg-black aspect-video shadow-lg"
+            aria-label="Видео с камеры для анализа усталости"
+          />
+          
+          {recording && (
+            <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
+              <span className="animate-pulse">●</span>
+              REC
+            </div>
+          )}
+        </div>
       </div>
       
       {recordedBlob && !recording && (

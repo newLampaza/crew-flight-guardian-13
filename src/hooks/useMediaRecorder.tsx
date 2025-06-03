@@ -1,9 +1,9 @@
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 interface UseMediaRecorderProps {
-  maxRecordingTime?: number; // in milliseconds
+  maxRecordingTime?: number;
   onRecordingComplete: (blob: Blob) => void;
 }
 
@@ -12,18 +12,36 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
   const [recording, setRecording] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [timeLeft, setTimeLeft] = useState(0);
+
+  // Clean up function
+  const cleanup = useCallback(() => {
+    if (mediaRecorder.current?.state === 'recording') {
+      mediaRecorder.current.stop();
+    }
+    
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    
+    chunks.current = [];
+    setRecording(false);
+    setTimeLeft(0);
+    setCameraError('');
+  }, []);
 
   // Clean up when unmounting
   useEffect(() => {
-    return () => {
-      if (mediaRecorder.current?.state === 'recording') {
-        mediaRecorder.current.stop();
-        mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
+    return cleanup;
+  }, [cleanup]);
 
   const startRecording = async () => {
     try {
@@ -35,6 +53,8 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
           facingMode: 'user'
         }
       });
+
+      streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -61,20 +81,34 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
             description: "Записанное видео пустое или повреждено",
             variant: "destructive"
           });
+          cleanup();
           return;
         }
         onRecordingComplete(blob);
-        chunks.current = [];
+        cleanup();
       };
 
       mediaRecorder.current.start(100);
       setRecording(true);
+      setTimeLeft(maxRecordingTime / 1000);
 
-      // Автоматически прекращаем запись через заданное время
+      // Timer countdown
+      const timer = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Auto-stop recording
       setTimeout(() => {
         if (mediaRecorder.current?.state === 'recording') {
           stopRecording();
         }
+        clearInterval(timer);
       }, maxRecordingTime);
 
     } catch (error) {
@@ -84,22 +118,23 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
         description: error instanceof Error ? error.message : "Неизвестная ошибка",
         variant: "destructive"
       });
+      cleanup();
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorder.current?.state === 'recording') {
       mediaRecorder.current.stop();
-      mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
-      setRecording(false);
     }
-  };
+  }, []);
 
   return {
     videoRef,
     recording,
     cameraError,
+    timeLeft,
     startRecording,
-    stopRecording
+    stopRecording,
+    cleanup
   };
 };

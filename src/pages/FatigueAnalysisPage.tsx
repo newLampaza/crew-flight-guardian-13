@@ -104,7 +104,6 @@ const sampleHistoryData = [
 ];
 
 const FatigueAnalysisPage = () => {
-  // State for the analysis mode and related data
   const [analysisMode, setAnalysisMode] = useState<'realtime' | 'flight' | null>(null);
   const [feedbackScore, setFeedbackScore] = useState(3);
   const [historyData, setHistoryData] = useState(sampleHistoryData);
@@ -127,7 +126,6 @@ const FatigueAnalysisPage = () => {
     saveToHistory,
     formatDate
   } = useFatigueAnalysis((result) => {
-    // Add the new analysis to the history data when successful
     setHistoryData(prev => [{
       analysis_id: result.analysis_id || Math.floor(Math.random() * 1000) + 1,
       neural_network_score: result.neural_network_score || Math.random(),
@@ -138,9 +136,11 @@ const FatigueAnalysisPage = () => {
   const { 
     videoRef, 
     recording, 
-    cameraError, 
+    cameraError,
+    timeLeft,
     startRecording, 
-    stopRecording 
+    stopRecording,
+    cleanup
   } = useMediaRecorder({ 
     onRecordingComplete: submitRecording 
   });
@@ -157,18 +157,15 @@ const FatigueAnalysisPage = () => {
     }
     
     try {
-      // Имитация отправки отзыва в демонстрационных целях
-      // В реальном приложении здесь был бы настоящий запрос к API
-      // await axios.post('/api/fatigue/feedback', {
-      //   analysis_id: analysisResult.analysis_id,
-      //   score: feedbackScore
-      // });
-      
       toast({
         title: "Отзыв сохранен",
         description: `Спасибо за вашу оценку: ${feedbackScore} из 5`
       });
+      
+      // Close dialog and reset state
       setAnalysisResult(null);
+      setAnalysisMode(null);
+      cleanup(); // Clean up media recorder
       
     } catch (error) {
       toast({
@@ -185,6 +182,19 @@ const FatigueAnalysisPage = () => {
   
   const handleSaveRecording = (blob: Blob) => {
     saveToHistory(blob);
+  };
+
+  // Close dialog handler with cleanup
+  const handleCloseDialog = () => {
+    setAnalysisMode(null);
+    cleanup();
+  };
+
+  // Close results dialog handler
+  const handleCloseResults = () => {
+    setAnalysisResult(null);
+    setAnalysisMode(null);
+    cleanup();
   };
 
   return (
@@ -391,7 +401,7 @@ const FatigueAnalysisPage = () => {
       </div>
 
       {/* Analysis Mode Dialog */}
-      <Dialog open={analysisMode !== null} onOpenChange={() => setAnalysisMode(null)}>
+      <Dialog open={analysisMode !== null} onOpenChange={(open) => !open && handleCloseDialog()}>
         <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
           <DialogHeader className="p-6 pb-2">
             <DialogTitle className="text-xl font-semibold">Выберите тип анализа</DialogTitle>
@@ -401,9 +411,9 @@ const FatigueAnalysisPage = () => {
           </DialogHeader>
           
           <div className="flex flex-col gap-6 p-6 pt-2">
-            {/* Real-time analysis block using our updated VideoRecorder component */}
             <VideoRecorder
               recording={recording}
+              timeLeft={timeLeft}
               onStartRecording={startRecording}
               onStopRecording={stopRecording}
               analysisResult={analysisResult}
@@ -413,7 +423,6 @@ const FatigueAnalysisPage = () => {
               saveToHistory={handleSaveRecording}
             />
 
-            {/* Flight analysis block using our new FlightAnalyzer component */}
             <FlightAnalyzer
               lastFlight={lastFlight}
               onAnalyzeFlight={handleAnalyzeFlight}
@@ -421,7 +430,7 @@ const FatigueAnalysisPage = () => {
             />
           </div>
           
-          {/* Analysis loading overlay using our AnalysisProgress component */}
+          {/* Analysis loading overlay */}
           <AnalysisProgress
             loading={analysisProgress.loading}
             message={analysisProgress.message}
@@ -430,9 +439,9 @@ const FatigueAnalysisPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Results dialog using our new AnalysisResult component */}
-      <Dialog open={analysisResult !== null} onOpenChange={(open) => !open && setAnalysisResult(null)}>
-        <DialogContent className="sm:max-w-[600px]">
+      {/* Results dialog */}
+      <Dialog open={analysisResult !== null} onOpenChange={(open) => !open && handleCloseResults()}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold">Результаты анализа</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -445,7 +454,7 @@ const FatigueAnalysisPage = () => {
               analysisResult={analysisResult}
               feedbackScore={feedbackScore}
               setFeedbackScore={setFeedbackScore}
-              onClose={() => setAnalysisResult(null)}
+              onClose={handleCloseResults}
               onSubmitFeedback={submitFeedback}
             />
           )}
