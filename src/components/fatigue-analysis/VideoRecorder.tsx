@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Square, Play, RotateCcw } from 'lucide-react';
+import { Camera, Square, Play, RotateCcw, Video } from 'lucide-react';
 import { useMediaRecorder } from '@/hooks/useMediaRecorder';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -20,7 +20,6 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
   analysisProgress 
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isRecording, setIsRecording] = useState(false);
   const [hasRecording, setHasRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -28,16 +27,17 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
   const {
     stream,
     recording,
+    cameraError,
     startRecording,
-    stopRecording,
-    recordedChunks
+    stopRecording
   } = useMediaRecorder({
+    maxRecordingTime: 30000, // 30 секунд как в бекенде
     onDataAvailable: (blob) => {
       console.log('Recording completed, blob size:', blob.size);
       setRecordedBlob(blob);
       setHasRecording(true);
-      setIsRecording(false);
       
+      // Показываем записанное видео
       if (videoRef.current) {
         videoRef.current.srcObject = null;
         videoRef.current.src = URL.createObjectURL(blob);
@@ -56,23 +56,25 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
     return () => clearInterval(interval);
   }, [recording]);
 
-  // Setup video stream
+  // Setup video stream when recording starts
   useEffect(() => {
-    if (stream && videoRef.current) {
+    if (stream && videoRef.current && recording) {
       videoRef.current.srcObject = stream;
     }
-  }, [stream]);
-
-  // Sync recording state
-  useEffect(() => {
-    setIsRecording(recording);
-  }, [recording]);
+  }, [stream, recording]);
 
   const handleStartRecording = async () => {
     try {
       setRecordingTime(0);
       setHasRecording(false);
       setRecordedBlob(null);
+      
+      // Очищаем предыдущее видео
+      if (videoRef.current) {
+        videoRef.current.src = '';
+        videoRef.current.srcObject = null;
+      }
+      
       await startRecording();
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -89,7 +91,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
     setRecordingTime(0);
     if (videoRef.current) {
       videoRef.current.src = '';
-      videoRef.current.srcObject = stream;
+      videoRef.current.srcObject = null;
     }
   };
 
@@ -123,37 +125,65 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
             className="w-full h-full object-cover"
           />
           
-          {isRecording && (
+          {recording && (
             <div className="absolute top-4 left-4 bg-red-500 text-white px-3 py-1 rounded-full flex items-center gap-2">
               <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
               REC {formatTime(recordingTime)}
             </div>
           )}
+
+          {hasRecording && !recording && (
+            <div className="absolute bottom-4 right-4 bg-green-500 text-white px-2 py-1 rounded flex items-center gap-1">
+              <Video className="h-3 w-3" />
+              <span className="text-xs">Готово</span>
+            </div>
+          )}
         </div>
 
+        {cameraError && (
+          <Alert variant="destructive">
+            <AlertDescription>{cameraError}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-wrap gap-2 justify-center">
-          {!isRecording && !hasRecording && (
-            <Button onClick={handleStartRecording} className="flex items-center gap-2">
+          {!recording && !hasRecording && (
+            <Button 
+              onClick={handleStartRecording} 
+              className="flex items-center gap-2"
+              disabled={analysisProgress?.loading}
+            >
               <Camera className="h-4 w-4" />
               Начать запись
             </Button>
           )}
 
-          {isRecording && (
-            <Button onClick={handleStopRecording} variant="destructive" className="flex items-center gap-2">
+          {recording && (
+            <Button 
+              onClick={handleStopRecording} 
+              variant="destructive" 
+              className="flex items-center gap-2"
+            >
               <Square className="h-4 w-4" />
-              Остановить запись
+              Остановить запись ({Math.max(0, 30 - recordingTime)}s)
             </Button>
           )}
 
           {hasRecording && !analysisProgress?.loading && (
             <>
-              <Button onClick={handleRetakeRecording} variant="outline" className="flex items-center gap-2">
+              <Button 
+                onClick={handleRetakeRecording} 
+                variant="outline" 
+                className="flex items-center gap-2"
+              >
                 <RotateCcw className="h-4 w-4" />
                 Перезаписать
               </Button>
               
-              <Button onClick={handleAnalyze} className="flex items-center gap-2">
+              <Button 
+                onClick={handleAnalyze} 
+                className="flex items-center gap-2"
+              >
                 <Play className="h-4 w-4" />
                 Анализировать
               </Button>
@@ -164,7 +194,8 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
         {hasRecording && (
           <Alert>
             <AlertDescription>
-              Запись готова для анализа. Запись будет автоматически сохранена при отправке отзыва о полете.
+              Запись готова для анализа. Длительность: {formatTime(recordingTime)} сек.
+              Видео будет отправлено на сервер для обработки нейросетью.
             </AlertDescription>
           </Alert>
         )}

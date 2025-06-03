@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import axios from 'axios';
@@ -13,6 +14,9 @@ interface AnalysisResult {
   to_code?: string;
   resolution?: string;
   fps?: number;
+  face_detection_ratio?: number;
+  frames_analyzed?: number;
+  error?: string;
 }
 
 interface Flight {
@@ -28,6 +32,7 @@ const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api'
 // Configure axios instance with proper base URL and auth token
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 60000, // 60 секунд для анализа видео
   headers: {
     'Content-Type': 'application/json'
   }
@@ -46,6 +51,19 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     console.error('Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor для обработки ошибок авторизации
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      console.error('Unauthorized access - redirecting to login');
+      // Можно добавить редирект на страницу логина
+      // window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );
@@ -75,18 +93,18 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       setRecordedBlob(blob);
       setAnalysisProgress({
         loading: true,
-        message: 'Обработка видео...',
-        percent: 20,
+        message: 'Подготовка видео...',
+        percent: 10,
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setAnalysisProgress(p => ({...p, percent: 40, message: 'Загрузка на сервер...'}));
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
       if (!blob || blob.size === 0) {
         throw new Error('Записанное видео слишком короткое или повреждено');
+      }
+
+      // Проверяем размер файла (ограничение Flask обычно 16MB)
+      const maxSize = 16 * 1024 * 1024; // 16MB
+      if (blob.size > maxSize) {
+        throw new Error('Файл слишком большой. Максимальный размер: 16MB');
       }
 
       const formData = new FormData();
@@ -94,25 +112,26 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
 
       setAnalysisProgress({
         loading: true,
-        message: 'Анализ нейросетью...',
-        percent: 60,
+        message: 'Загрузка на сервер...',
+        percent: 30,
       });
 
       console.log('Submitting video to API:', `${API_BASE_URL}/fatigue/analyze`);
-      console.log('Current auth token:', localStorage.getItem('fatigue-guard-token'));
+      console.log('Video blob size:', blob.size, 'bytes');
       
-      // Реальный запрос к API
       try {
-        // Используем apiClient с интерсепторами аутентификации
+        // Реальный запрос к Flask API
         const response = await apiClient.post('/fatigue/analyze', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
           onUploadProgress: (progressEvent) => {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
+            const total = progressEvent.total || blob.size;
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / total);
             setAnalysisProgress(p => ({
               ...p,
-              percent: 40 + Math.min(percentCompleted / 2, 40), // от 40% до 80%
+              percent: 30 + Math.min(percentCompleted / 2, 40), // от 30% до 70%
+              message: percentCompleted < 100 ? 'Загрузка на сервер...' : 'Анализ нейросетью...'
             }));
           }
         });
@@ -127,67 +146,58 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           console.log('API Response:', response.data);
           setAnalysisResult(response.data);
           if (onSuccess) onSuccess(response.data);
+          
+          toast({
+            title: "Анализ завершен",
+            description: `Уровень усталости: ${response.data.fatigue_level || 'не определен'}`,
+            variant: "default"
+          });
         }
       } catch (apiError: any) {
         console.error('API Error:', apiError);
+        setAnalysisProgress({loading: false, message: '', percent: 0});
         
         if (apiError.response?.status === 401) {
           toast({
             title: "Ошибка авторизации",
-            description: "Необходимо выполнить вход в систему. Перенаправление на страницу входа...",
+            description: "Необходимо выполнить вход в систему",
             variant: "destructive"
           });
-          
-          // Если ошибка авторизации, перенаправляем на страницу входа
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 2000);
           return;
         }
         
-        // Проверяем, является ли это ошибкой "лицо не обнаружено"
-        if (apiError.response?.status === 400 && apiError.response?.data?.error?.includes('face')) {
-          setAnalysisProgress({loading: false, message: '', percent: 0});
-          
+        // Обработка специфических ошибок API
+        if (apiError.response?.status === 400) {
+          const errorMessage = apiError.response?.data?.error || apiError.message;
+          if (errorMessage.toLowerCase().includes('face')) {
+            toast({
+              title: "Лицо не обнаружено",
+              description: "Попробуйте записать видео с лучшим освещением, расположив лицо по центру кадра",
+              variant: "destructive"
+            });
+            return;
+          }
+        }
+        
+        if (apiError.response?.status === 413) {
           toast({
-            title: "Лицо не обнаружено",
-            description: "Попробуйте записать видео с лучшим освещением, расположив лицо по центру кадра",
+            title: "Файл слишком большой",
+            description: "Попробуйте записать более короткое видео",
             variant: "destructive"
           });
           return;
         }
         
         toast({
-          title: "Ошибка соединения с API",
-          description: `${apiError.message}. Проверьте что сервер запущен на порту 5000. Временно используем демо-данные.`,
+          title: "Ошибка анализа",
+          description: `${apiError.message}. Проверьте подключение к серверу.`,
           variant: "destructive"
         });
-        
-        // Фолбек - генерируем результат для демо, если API недоступен
-        setTimeout(() => {
-          setAnalysisProgress({loading: false, message: '', percent: 0});
-          
-          const mockResult = {
-            analysis_id: Math.floor(Math.random() * 1000) + 1,
-            fatigue_level: Math.random() > 0.6 ? 'High' : Math.random() > 0.3 ? 'Medium' : 'Low',
-            neural_network_score: Math.random(),
-            analysis_date: formatDate(new Date().toISOString()),
-            video_path: '/videos/test.mp4'
-          };
-          
-          setAnalysisResult(mockResult);
-          if (onSuccess) onSuccess(mockResult);
-          
-          toast({
-            title: "Демо-режим",
-            description: "API недоступно. Запустите Flask сервер на порту 5000.",
-            variant: "default"
-          });
-        }, 1000);
       }
       
     } catch (error) {
       setAnalysisProgress({loading: false, message: '', percent: 0});
+      console.error('Analysis error:', error);
       toast({
         title: "Ошибка анализа",
         description: error instanceof Error ? error.message : "Неизвестная ошибка",
@@ -210,7 +220,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       try {
         console.log('Saving video to API:', `${API_BASE_URL}/fatigue/save-recording`);
         
-        // Сохраняем запись в базу данных
         const response = await apiClient.post('/fatigue/save-recording', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
@@ -264,14 +273,9 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 20,
       });
 
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      setAnalysisProgress(p => ({...p, percent: 40, message: 'Загрузка видео рейса...'}));
-
       try {
         console.log('Analyzing flight with API:', `${API_BASE_URL}/fatigue/analyze-flight`, lastFlight);
         
-        // Реальный запрос к API для анализа последнего рейса
         const response = await apiClient.post('/fatigue/analyze-flight', {
           flight_id: lastFlight?.flight_id,
         });
@@ -283,10 +287,16 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         if (response.data) {
           setAnalysisResult(response.data);
           if (onSuccess) onSuccess(response.data);
-          return;
+          
+          toast({
+            title: "Анализ рейса завершен",
+            description: `Рейс ${lastFlight?.from_code} → ${lastFlight?.to_code}`,
+            variant: "default"
+          });
         }
       } catch (apiError: any) {
-        console.error('API Error:', apiError);
+        console.error('Flight analysis API Error:', apiError);
+        setAnalysisProgress({loading: false, message: '', percent: 0});
         
         if (apiError.response?.status === 401) {
           toast({
@@ -297,52 +307,20 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           return;
         }
         
+        if (apiError.response?.status === 404) {
+          toast({
+            title: "Рейс не найден",
+            description: "Данные о рейсе недоступны или отсутствуют",
+            variant: "destructive"
+          });
+          return;
+        }
+        
         toast({
-          title: "Ошибка соединения с API",
-          description: `${apiError.message}. Проверьте что сервер запущен на порту 5000. Временно используем демо-данные.`,
+          title: "Ошибка анализа рейса",
+          description: `${apiError.message}. Проверьте подключение к серверу.`,
           variant: "destructive"
         });
-        
-        // Фолбек для демо-режима
-        setAnalysisProgress({
-          loading: true,
-          message: 'Анализ нейросетью...',
-          percent: 80,
-        });
-
-        const interval = setInterval(() => {
-          setAnalysisProgress(p => ({
-            ...p,
-            percent: Math.min(p.percent + 1, 95),
-          }));
-        }, 100);
-
-        setTimeout(() => {
-          clearInterval(interval);
-          setAnalysisProgress(p => ({...p, percent: 100}));
-          setTimeout(() => {
-            setAnalysisProgress({loading: false, message: '', percent: 0});
-            
-            const mockResult = {
-              analysis_id: Math.floor(Math.random() * 1000) + 1,
-              fatigue_level: Math.random() > 0.6 ? 'High' : Math.random() > 0.3 ? 'Medium' : 'Low',
-              neural_network_score: Math.random(),
-              analysis_date: formatDate(new Date().toISOString()),
-              from_code: lastFlight?.from_code,
-              to_code: lastFlight?.to_code,
-              video_path: lastFlight?.video_path
-            };
-            
-            setAnalysisResult(mockResult);
-            if (onSuccess) onSuccess(mockResult);
-            
-            toast({
-              title: "Демо-режим",
-              description: "API недоступно. Запустите Flask сервер на порту 5000.",
-              variant: "default"
-            });
-          }, 500);
-        }, 2000);
       }
 
     } catch (error) {
