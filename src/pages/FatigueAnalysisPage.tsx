@@ -37,6 +37,7 @@ import { FlightAnalyzer } from "@/components/fatigue-analysis/FlightAnalyzer";
 import { AnalysisResult } from "@/components/fatigue-analysis/AnalysisResult";
 import { AnalysisProgress } from "@/components/fatigue-analysis/AnalysisProgress";
 import { FatigueIndicator } from "@/components/fatigue-analysis/FatigueIndicator";
+import { useMediaRecorder } from "@/hooks/useMediaRecorder";
 import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
 
 // Sample data
@@ -133,6 +134,18 @@ const FatigueAnalysisPage = () => {
     }, ...prev]);
   });
 
+  const { 
+    videoRef, 
+    stream,
+    recording, 
+    cameraError, 
+    recordedChunks,
+    startRecording, 
+    stopRecording 
+  } = useMediaRecorder({ 
+    onDataAvailable: submitRecording 
+  });
+
   // Handle feedback submission
   const submitFeedback = async () => {
     if (!analysisResult?.analysis_id) {
@@ -145,27 +158,13 @@ const FatigueAnalysisPage = () => {
     }
     
     try {
-      // Отправляем отзыв через API
-      const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
-      const token = localStorage.getItem('fatigue-guard-token');
+      // Имитация отправки отзыва в демонстрационных целях
+      // В реальном приложении здесь был бы настоящий запрос к API
+      // await axios.post('/api/fatigue/feedback', {
+      //   analysis_id: analysisResult.analysis_id,
+      //   score: feedbackScore
+      // });
       
-      const response = await fetch(`${API_BASE_URL}/feedback/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          analysis_id: analysisResult.analysis_id,
-          feedback_score: feedbackScore,
-          feedback_text: `Оценка пользователя: ${feedbackScore} из 5`
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Ошибка отправки отзыва');
-      }
-
       toast({
         title: "Отзыв сохранен",
         description: `Спасибо за вашу оценку: ${feedbackScore} из 5`
@@ -173,7 +172,6 @@ const FatigueAnalysisPage = () => {
       setAnalysisResult(null);
       
     } catch (error) {
-      console.error('Feedback submission error:', error);
       toast({
         title: "Ошибка отправки отзыва",
         description: error instanceof Error ? error.message : "Неизвестная ошибка",
@@ -202,6 +200,7 @@ const FatigueAnalysisPage = () => {
         >
           <Brain className="mr-2 h-4 w-4" />
           Начать анализ
+          {recording && <span className="inline-block animate-pulse text-white ml-2">● Запись</span>}
         </Button>
       </div>
 

@@ -1,6 +1,6 @@
 
 import { useRef, useState, useEffect } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface UseMediaRecorderProps {
   maxRecordingTime?: number; // in milliseconds
@@ -8,6 +8,7 @@ interface UseMediaRecorderProps {
 }
 
 export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: UseMediaRecorderProps) => {
+  const { toast } = useToast();
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -37,23 +38,13 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: 
           width: { ideal: 1280, max: 1920 },
           height: { ideal: 720, max: 1080 },
           facingMode: 'user'
-        },
-        audio: false // Отключаем аудио для анализа усталости
+        }
       });
 
       setStream(newStream);
 
-      // Проверяем поддержку кодеков
-      let mimeType = 'video/webm; codecs=vp9';
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'video/webm; codecs=vp8';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'video/webm';
-        }
-      }
-
       const options = { 
-        mimeType,
+        mimeType: 'video/webm; codecs=vp9',
         videoBitsPerSecond: 2500000
       };
 
@@ -67,7 +58,7 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: 
       };
 
       mediaRecorder.current.onstop = () => {
-        const blob = new Blob(chunks.current, { type: mimeType });
+        const blob = new Blob(chunks.current, { type: 'video/webm' });
         if (blob.size === 0) {
           toast({
             title: "Ошибка записи",
@@ -84,11 +75,6 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: 
       mediaRecorder.current.start(100);
       setRecording(true);
 
-      // Подключаем видео поток к элементу video
-      if (videoRef.current) {
-        videoRef.current.srcObject = newStream;
-      }
-
       // Автоматически прекращаем запись через заданное время
       setTimeout(() => {
         if (mediaRecorder.current?.state === 'recording') {
@@ -97,7 +83,6 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: 
       }, maxRecordingTime);
 
     } catch (error) {
-      console.error('Camera access error:', error);
       setCameraError('Для анализа требуется доступ к камере');
       toast({
         title: "Ошибка доступа к камере",
