@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -133,17 +134,15 @@ const FatigueAnalysisPage = () => {
       analysis_date: formatDate(result.analysis_date || new Date().toISOString())
     }, ...prev]);
   });
-
+  
   const { 
     videoRef, 
-    stream,
     recording, 
     cameraError, 
-    recordedChunks,
     startRecording, 
     stopRecording 
   } = useMediaRecorder({ 
-    onDataAvailable: submitRecording 
+    onRecordingComplete: submitRecording 
   });
 
   // Handle feedback submission
@@ -182,6 +181,10 @@ const FatigueAnalysisPage = () => {
 
   const handleAnalyzeFlight = () => {
     analyzeFlight(lastFlight);
+  };
+  
+  const handleSaveRecording = (blob: Blob) => {
+    saveToHistory(blob);
   };
 
   return (
@@ -400,8 +403,14 @@ const FatigueAnalysisPage = () => {
           <div className="flex flex-col gap-6 p-6 pt-2">
             {/* Real-time analysis block using our updated VideoRecorder component */}
             <VideoRecorder
-              onAnalyze={submitRecording}
-              analysisProgress={analysisProgress}
+              recording={recording}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
+              analysisResult={analysisResult}
+              cameraError={cameraError}
+              videoRef={videoRef}
+              recordedBlob={recordedBlob || undefined}
+              saveToHistory={handleSaveRecording}
             />
 
             {/* Flight analysis block using our new FlightAnalyzer component */}

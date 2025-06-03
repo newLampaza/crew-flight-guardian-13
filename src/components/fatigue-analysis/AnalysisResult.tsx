@@ -39,17 +39,6 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [videoAttempts, setVideoAttempts] = useState(0);
 
-  // Исправляем зависание интерфейса - убираем фиксацию body
-  useEffect(() => {
-    // Убеждаемся, что body не заблокирован для скролла
-    document.body.style.overflow = 'auto';
-    
-    return () => {
-      // Cleanup при размонтировании компонента
-      document.body.style.overflow = 'auto';
-    };
-  }, []);
-
   const getFatigueLevel = (level?: string) => {
     switch (level?.toLowerCase()) {
       case 'high': return 'Высокий';
@@ -124,7 +113,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
       toast({
         title: "Видео с анализом сохранено",
         description: `Запись доступна по пути: ${analysisResult.video_path}`,
-        variant: "default",
+        variant: "info",
         action: (
           <Button 
             variant="outline" 
@@ -185,7 +174,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
   };
 
   return (
-    <div className="space-y-4 max-h-[80vh] overflow-y-auto">
+    <div className="space-y-4">
       {hasFaceDetectionError() && (
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
@@ -370,7 +359,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
         </div>
       )}
 
-      <div className="flex justify-end mt-6 gap-2 sticky bottom-0 bg-background/95 backdrop-blur pt-2">
+      <div className="flex justify-end mt-6 gap-2">
         <Button variant="outline" onClick={onClose}>
           Закрыть
         </Button>
