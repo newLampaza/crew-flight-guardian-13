@@ -11,6 +11,7 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: 
   const { toast } = useToast();
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [recording, setRecording] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -103,6 +104,7 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: 
   };
 
   return {
+    videoRef,
     stream,
     recording,
     cameraError,
