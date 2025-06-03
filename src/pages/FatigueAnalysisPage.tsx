@@ -136,12 +136,14 @@ const FatigueAnalysisPage = () => {
 
   const { 
     videoRef, 
+    stream,
     recording, 
     cameraError, 
+    recordedChunks,
     startRecording, 
     stopRecording 
   } = useMediaRecorder({ 
-    onRecordingComplete: submitRecording 
+    onDataAvailable: submitRecording 
   });
 
   // Handle feedback submission
