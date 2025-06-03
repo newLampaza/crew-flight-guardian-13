@@ -2,13 +2,12 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Camera, Square, Play, RotateCcw, Save } from 'lucide-react';
+import { Camera, Square, Play, RotateCcw } from 'lucide-react';
 import { useMediaRecorder } from '@/hooks/useMediaRecorder';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface VideoRecorderProps {
   onAnalyze: (blob: Blob) => void;
-  onSaveToHistory: (blob: Blob) => void;
   analysisProgress?: {
     loading: boolean;
     message: string;
@@ -18,7 +17,6 @@ interface VideoRecorderProps {
 
 export const VideoRecorder: React.FC<VideoRecorderProps> = ({ 
   onAnalyze, 
-  onSaveToHistory,
   analysisProgress 
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -29,6 +27,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
 
   const {
     stream,
+    recording,
     startRecording,
     stopRecording,
     recordedChunks
@@ -37,6 +36,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
       console.log('Recording completed, blob size:', blob.size);
       setRecordedBlob(blob);
       setHasRecording(true);
+      setIsRecording(false);
       
       if (videoRef.current) {
         videoRef.current.srcObject = null;
@@ -48,13 +48,13 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
   // Timer for recording duration
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (isRecording) {
+    if (recording) {
       interval = setInterval(() => {
         setRecordingTime(prev => prev + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [isRecording]);
+  }, [recording]);
 
   // Setup video stream
   useEffect(() => {
@@ -63,13 +63,17 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
     }
   }, [stream]);
 
+  // Sync recording state
+  useEffect(() => {
+    setIsRecording(recording);
+  }, [recording]);
+
   const handleStartRecording = async () => {
     try {
       setRecordingTime(0);
       setHasRecording(false);
       setRecordedBlob(null);
       await startRecording();
-      setIsRecording(true);
     } catch (error) {
       console.error('Failed to start recording:', error);
     }
@@ -77,7 +81,6 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
 
   const handleStopRecording = () => {
     stopRecording();
-    setIsRecording(false);
   };
 
   const handleRetakeRecording = () => {
@@ -95,13 +98,6 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({
       onAnalyze(recordedBlob);
     }
   };
-
-  // Убираем кнопку "Сохранить запись" - теперь это происходит автоматически при отправке отзыва
-  // const handleSaveToHistory = () => {
-  //   if (recordedBlob) {
-  //     onSaveToHistory(recordedBlob);
-  //   }
-  // };
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

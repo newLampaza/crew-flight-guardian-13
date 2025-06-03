@@ -4,16 +4,17 @@ import { useToast } from '@/hooks/use-toast';
 
 interface UseMediaRecorderProps {
   maxRecordingTime?: number; // in milliseconds
-  onRecordingComplete: (blob: Blob) => void;
+  onDataAvailable: (blob: Blob) => void;
 }
 
-export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete }: UseMediaRecorderProps) => {
+export const useMediaRecorder = ({ maxRecordingTime = 30000, onDataAvailable }: UseMediaRecorderProps) => {
   const { toast } = useToast();
-  const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   const [recording, setRecording] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
 
   // Clean up when unmounting
   useEffect(() => {
@@ -22,13 +23,16 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
         mediaRecorder.current.stop();
         mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
       }
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
     };
-  }, []);
+  }, [stream]);
 
   const startRecording = async () => {
     try {
       setCameraError('');
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const newStream = await navigator.mediaDevices.getUserMedia({
         video: { 
           width: { ideal: 1280, max: 1920 },
           height: { ideal: 720, max: 1080 },
@@ -36,20 +40,19 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
         }
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      setStream(newStream);
 
       const options = { 
         mimeType: 'video/webm; codecs=vp9',
         videoBitsPerSecond: 2500000
       };
 
-      mediaRecorder.current = new MediaRecorder(stream, options);
+      mediaRecorder.current = new MediaRecorder(newStream, options);
       
       mediaRecorder.current.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunks.current.push(e.data);
+          setRecordedChunks(prev => [...prev, e.data]);
         }
       };
 
@@ -63,8 +66,9 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
           });
           return;
         }
-        onRecordingComplete(blob);
+        onDataAvailable(blob);
         chunks.current = [];
+        setRecordedChunks([]);
       };
 
       mediaRecorder.current.start(100);
@@ -90,15 +94,19 @@ export const useMediaRecorder = ({ maxRecordingTime = 30000, onRecordingComplete
   const stopRecording = () => {
     if (mediaRecorder.current?.state === 'recording') {
       mediaRecorder.current.stop();
-      mediaRecorder.current.stream.getTracks().forEach(track => track.stop());
       setRecording(false);
+    }
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      setStream(null);
     }
   };
 
   return {
-    videoRef,
+    stream,
     recording,
     cameraError,
+    recordedChunks,
     startRecording,
     stopRecording
   };
