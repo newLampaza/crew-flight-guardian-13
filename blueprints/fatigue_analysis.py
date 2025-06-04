@@ -331,32 +331,51 @@ def analyze_flight(current_user):
     
     conn = None
     try:
+        data = request.get_json()
+        if not data:
+            fatigue_logger.warning(f"[{request_id}] No JSON data in request")
+            return jsonify({'error': 'No data provided'}), 400
+
+        flight_id = data.get('flight_id')
+        video_path = data.get('video_path')
+        
+        if not flight_id or not video_path:
+            fatigue_logger.warning(f"[{request_id}] Missing flight_id or video_path")
+            return jsonify({'error': 'flight_id and video_path are required'}), 400
+
+        fatigue_logger.info(f"[{request_id}] Processing flight {flight_id} with video: {video_path}")
+
         conn = sqlite3.connect('database/database.db')
         conn.row_factory = sqlite3.Row
         
-        # Get the last flight with video
+        # Получаем информацию о рейсе (без проверки video_path в БД)
         flight = conn.execute('''
-            SELECT f.flight_id, f.video_path, f.from_code, f.to_code
+            SELECT f.flight_id, f.from_code, f.to_code
             FROM Flights f
             JOIN CrewMembers cm ON f.crew_id = cm.crew_id
             WHERE cm.employee_id = ?
+                AND f.flight_id = ?
                 AND f.arrival_time < datetime('now', 'localtime')
-                AND f.video_path IS NOT NULL
-            ORDER BY f.arrival_time DESC
-            LIMIT 1
-        ''', (current_user['employee_id'],)).fetchone()
+        ''', (current_user['employee_id'], flight_id)).fetchone()
 
         if not flight:
-            fatigue_logger.warning(f"[{request_id}] No flights with video found for user")
-            return jsonify({'error': 'No completed flights with video found'}), 404
+            fatigue_logger.warning(f"[{request_id}] Flight not found or not completed for user")
+            return jsonify({'error': 'Flight not found or not completed'}), 404
 
-        fatigue_logger.info(f"[{request_id}] Found flight: {flight['flight_id']}, video: {flight['video_path']}")
-
-        video_path = os.path.join(VIDEO_DIR, flight['video_path'])
+        # Определяем путь к видеофайлу
+        # Если video_path начинается с "/videos/", убираем этот префикс
+        if video_path.startswith('/videos/'):
+            video_filename = video_path[8:]  # Убираем "/videos/"
+        else:
+            video_filename = video_path
+            
+        full_video_path = os.path.join(VIDEO_DIR, video_filename)
         
-        if not os.path.exists(video_path):
-            fatigue_logger.error(f"[{request_id}] Video file not found: {video_path}")
-            return jsonify({'error': 'Video file not found'}), 404
+        fatigue_logger.info(f"[{request_id}] Looking for video at: {full_video_path}")
+        
+        if not os.path.exists(full_video_path):
+            fatigue_logger.error(f"[{request_id}] Video file not found: {full_video_path}")
+            return jsonify({'error': f'Video file not found: {video_filename}'}), 404
 
         # Generate output filename
         output_name = f"analyzed_flight_{uuid.uuid4()}.mp4"
@@ -366,7 +385,7 @@ def analyze_flight(current_user):
         
         # Analyze the flight video
         level, percent, details = analyze_source(
-            source=video_path, 
+            source=full_video_path, 
             is_video_file=True,
             output_file=output_path
         )
@@ -409,7 +428,9 @@ def analyze_flight(current_user):
             'from_code': flight['from_code'],
             'to_code': flight['to_code'],
             'resolution': details.get('resolution', 'unknown'),
-            'fps': details.get('fps', 0)
+            'fps': details.get('fps', 0),
+            'face_detection_ratio': details.get('face_detected_ratio', 0),
+            'frames_analyzed': details.get('frames_analyzed', 0)
         }
         
         fatigue_logger.info(f"[{request_id}] Flight analysis completed successfully: {result}")
