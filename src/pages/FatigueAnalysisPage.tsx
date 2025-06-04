@@ -16,6 +16,7 @@ import { FatigueTrendChart } from "@/components/fatigue-analysis/FatigueTrendCha
 import { FatigueStatusCard } from "@/components/fatigue-analysis/FatigueStatusCard";
 import { useMediaRecorder } from "@/hooks/useMediaRecorder";
 import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
+import { useFlights } from "@/hooks/useFlights";
 
 import { 
   BatteryMedium,
@@ -83,13 +84,16 @@ const fatigueStats = [
 const FatigueAnalysisPage = () => {
   const [analysisMode, setAnalysisMode] = useState<'realtime' | 'flight' | null>(null);
   const [feedbackScore, setFeedbackScore] = useState(3);
-  const [lastFlight] = useState({
-    flight_id: 1,
-    from_code: "SVO",
-    to_code: "LED",
-    departure_time: "2025-04-15T14:30:00",
-    video_path: "/videos/test.mp4"
-  });
+  
+  // Загружаем реальные данные о рейсах
+  const { data: flights = [], isLoading: flightsLoading } = useFlights();
+  
+  // Получаем последний завершенный рейс
+  const lastFlight = flights.length > 0 
+    ? flights
+        .filter(flight => flight.arrival_time && new Date(flight.arrival_time) < new Date())
+        .sort((a, b) => new Date(b.arrival_time).getTime() - new Date(a.arrival_time).getTime())[0] || null
+    : null;
 
   // Use our custom hooks
   const { 
@@ -158,6 +162,11 @@ const FatigueAnalysisPage = () => {
     cleanup();
   };
 
+  // Вычисляем текущий уровень усталости на основе последнего анализа
+  const currentFatigueLevel = historyData.length > 0 
+    ? Math.round((historyData[0].neural_network_score || 0) * 100)
+    : 65; // Значение по умолчанию
+
   return (
     <div className="space-y-8 animate-fade-in p-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -189,7 +198,7 @@ const FatigueAnalysisPage = () => {
 
         {/* Status and History */}
         <div className="space-y-6">
-          <FatigueStatusCard fatigueLevel={65} />
+          <FatigueStatusCard fatigueLevel={currentFatigueLevel} />
 
           {/* History Card */}
           <Card className="hover:shadow-lg transition-all duration-200 overflow-hidden">

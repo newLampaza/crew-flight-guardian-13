@@ -24,6 +24,7 @@ interface Flight {
   from_code?: string;
   to_code?: string;
   departure_time?: string;
+  arrival_time?: string;
   video_path?: string;
 }
 
@@ -96,10 +97,12 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
 
   const submitFeedback = async (analysisId: number, score: number) => {
     try {
-      await apiClient.post('/feedback/submit', {
-        analysis_id: analysisId,
-        feedback_score: score,
-        feedback_type: 'fatigue_analysis'
+      // Используем правильный эндпоинт из feedback.py
+      await apiClient.post('/feedback', {
+        entity_type: 'fatigue_analysis',
+        entity_id: analysisId,
+        rating: score,
+        comments: `Оценка анализа усталости: ${score} из 5`
       });
       
       toast({
@@ -163,7 +166,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       if (response.data) {
         setAnalysisResult(response.data);
         if (onSuccess) onSuccess(response.data);
-        await loadHistory(); // Обновляем историю после анализа
+        await loadHistory();
       }
       
     } catch (error: any) {
@@ -207,12 +210,18 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
     try {
       setAnalysisProgress({
         loading: true,
-        message: 'Анализ рейса...',
+        message: 'Анализ видео рейса...',
         percent: 40,
       });
 
+      // Генерируем путь к видео на основе информации о рейсе
+      const videoFileName = flight 
+        ? `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`
+        : 'default_flight_video.mp4';
+
       const response = await apiClient.post('/fatigue/analyze-flight', {
         flight_id: flight?.flight_id,
+        video_path: `/videos/${videoFileName}` // Стандартный путь к видео рейсов
       });
 
       setAnalysisProgress({loading: false, message: '', percent: 100});
@@ -225,11 +234,20 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       
     } catch (error: any) {
       setAnalysisProgress({loading: false, message: '', percent: 0});
-      toast({
-        title: "Ошибка анализа рейса",
-        description: error.message || "Неизвестная ошибка",
-        variant: "destructive"
-      });
+      
+      if (error.response?.status === 404) {
+        toast({
+          title: "Видео не найдено",
+          description: `Видео рейса не найдено. Убедитесь, что файл ${flight ? `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4` : 'default_flight_video.mp4'} существует в папке neural_network/data/video/`,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Ошибка анализа рейса",
+          description: error.message || "Неизвестная ошибка",
+          variant: "destructive"
+        });
+      }
     }
   };
 
