@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -176,11 +175,7 @@ export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ histor
                       return null;
                     }}
                   />
-                  <Bar
-                    dataKey="fatigue_score"
-                    radius={[4, 4, 0, 0]}
-                    fill={(entry: any) => getBarColor(entry.fatigue_score)}
-                  >
+                  <Bar dataKey="fatigue_score" radius={[4, 4, 0, 0]}>
                     {barChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getBarColor(entry.fatigue_score)} />
                     ))}

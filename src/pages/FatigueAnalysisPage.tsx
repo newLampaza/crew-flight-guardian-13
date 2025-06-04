@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import { AnalysisProgress } from "@/components/fatigue-analysis/AnalysisProgress
 import { FatigueStats } from "@/components/fatigue-analysis/FatigueStats";
 import { FatigueTrendChart } from "@/components/fatigue-analysis/FatigueTrendChart";
 import { FatigueStatusCard } from "@/components/fatigue-analysis/FatigueStatusCard";
+import { AllAnalysesChart } from "@/components/fatigue-analysis/AllAnalysesChart";
+import { FlightAnalysesChart } from "@/components/fatigue-analysis/FlightAnalysesChart";
 import { useMediaRecorder } from "@/hooks/useMediaRecorder";
 import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
 import { useFlights } from "@/hooks/useFlights";
