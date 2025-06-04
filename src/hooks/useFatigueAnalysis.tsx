@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import axios from 'axios';
@@ -33,6 +32,9 @@ interface HistoryItem {
   neural_network_score: number;
   analysis_date: string;
   fatigue_level?: string;
+  flight_id?: number;
+  from_code?: string;
+  to_code?: string;
 }
 
 const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
@@ -83,15 +85,22 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
     try {
       const response = await apiClient.get('/fatigue/history');
       if (response.data) {
-        setHistoryData(response.data.map((item: any) => ({
+        const formattedHistory = response.data.map((item: any) => ({
           analysis_id: item.analysis_id,
           neural_network_score: item.neural_network_score || 0,
-          analysis_date: formatDate(item.analysis_date),
-          fatigue_level: item.fatigue_level
-        })));
+          analysis_date: item.analysis_date, // Сохраняем оригинальную дату для фильтрации
+          fatigue_level: item.fatigue_level,
+          flight_id: item.flight_id, // Добавляем flight_id для определения типа анализа
+          from_code: item.from_code,
+          to_code: item.to_code
+        }));
+        console.log('Loaded history data:', formattedHistory);
+        setHistoryData(formattedHistory);
       }
     } catch (error) {
       console.error('Failed to load history:', error);
+      // В случае ошибки загружаем пустой массив
+      setHistoryData([]);
     }
   };
 
