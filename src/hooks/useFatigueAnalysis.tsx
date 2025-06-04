@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { toast } from '@/components/ui/use-toast';
 import axios from 'axios';
@@ -223,14 +224,12 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 40,
       });
 
-      // Генерируем путь к видео на основе информации о рейсе
-      const videoFileName = flight 
-        ? `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`
-        : 'default_flight_video.mp4';
+      // Используем существующий video_path из данных рейса
+      const videoPath = flight?.video_path || `/videos/flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
 
       const response = await apiClient.post('/fatigue/analyze-flight', {
         flight_id: flight?.flight_id,
-        video_path: `/videos/${videoFileName}` // Стандартный путь к видео рейсов
+        video_path: videoPath
       });
 
       setAnalysisProgress({loading: false, message: '', percent: 100});
@@ -245,9 +244,10 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       setAnalysisProgress({loading: false, message: '', percent: 0});
       
       if (error.response?.status === 404) {
+        const expectedFile = flight?.video_path || `flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
         toast({
           title: "Видео не найдено",
-          description: `Видео рейса не найдено. Убедитесь, что файл ${flight ? `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4` : 'default_flight_video.mp4'} существует в папке neural_network/data/video/`,
+          description: `Видео рейса не найдено. Убедитесь, что файл ${expectedFile} существует в папке neural_network/data/video/`,
           variant: "destructive"
         });
       } else {

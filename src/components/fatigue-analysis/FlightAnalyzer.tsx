@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { History, Video, AlertTriangle } from 'lucide-react';
@@ -43,10 +42,13 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
     }
   };
 
-  // Генерируем ожидаемое имя файла
-  const expectedVideoFile = lastFlight 
-    ? `flight_${lastFlight.flight_id}_${lastFlight.from_code}_${lastFlight.to_code}.mp4`
-    : 'default_flight_video.mp4';
+  // Используем реальный путь к видео из данных рейса
+  const actualVideoPath = lastFlight?.video_path;
+  const expectedVideoFile = actualVideoPath 
+    ? actualVideoPath.split('/').pop() // Извлекаем только имя файла
+    : lastFlight 
+      ? `flight_${lastFlight.flight_id}_${lastFlight.from_code}_${lastFlight.to_code}.mp4`
+      : 'default_flight_video.mp4';
 
   return (
     <div className="p-6 border rounded-lg transition-all duration-200 border-border">
@@ -78,10 +80,12 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
           <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <span className="text-sm font-medium">Ожидаемый файл видео:</span>
+              <span className="text-sm font-medium">
+                {actualVideoPath ? 'Путь к видео:' : 'Ожидаемый файл видео:'}
+              </span>
             </div>
             <code className="text-xs text-muted-foreground break-all">
-              neural_network/data/video/{expectedVideoFile}
+              {actualVideoPath || `neural_network/data/video/${expectedVideoFile}`}
             </code>
           </div>
         </div>
@@ -106,7 +110,10 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
       
       {lastFlight && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Убедитесь, что видео файл <strong>{expectedVideoFile}</strong> находится в папке neural_network/data/video/
+          {actualVideoPath 
+            ? `Будет использован файл: ${expectedVideoFile}`
+            : `Убедитесь, что видео файл ${expectedVideoFile} находится в папке neural_network/data/video/`
+          }
         </p>
       )}
     </div>
