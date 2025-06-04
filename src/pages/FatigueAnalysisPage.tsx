@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -244,6 +243,12 @@ const FatigueAnalysisPage = () => {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Analytics Charts Section */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <AllAnalysesChart historyData={historyData} />
+        <FlightAnalysesChart historyData={historyData} />
       </div>
 
       {/* Analysis Mode Dialog */}
