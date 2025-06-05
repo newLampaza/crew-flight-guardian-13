@@ -1,3 +1,4 @@
+
 import os
 import uuid
 import traceback
@@ -34,6 +35,26 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_video_file_path(filename):
+    """Find video file path by filename only"""
+    # Remove any path prefixes and use only the filename
+    if filename.startswith('/videos/'):
+        filename = filename[8:]  # Remove '/videos/' prefix
+    elif filename.startswith('/video/'):
+        filename = filename[7:]  # Remove '/video/' prefix
+    
+    # Check if file exists in video directory
+    full_path = os.path.join(VIDEO_DIR, filename)
+    if os.path.exists(full_path):
+        return full_path
+    
+    # If not found, search recursively
+    for root, dirs, files in os.walk(VIDEO_DIR):
+        if filename in files:
+            return os.path.join(root, filename)
+    
+    return None
+
 @fatigue_bp.route('/analyze', methods=['POST'])
 @token_required
 def analyze_fatigue(current_user):
@@ -59,7 +80,7 @@ def analyze_fatigue(current_user):
             fatigue_logger.error(f"[{request_id}] Unsupported file format: {file_ext}")
             return jsonify({'error': f'Unsupported format. Allowed: {ALLOWED_EXTENSIONS}'}), 400
 
-        # Generate filenames
+        # Generate filenames (store only filename, not full path)
         unique_id = uuid.uuid4()
         original_name = f"video_{unique_id}.{file_ext}"
         original_path = os.path.join(VIDEO_DIR, original_name)
@@ -99,10 +120,9 @@ def analyze_fatigue(current_user):
             
             if not face_detected or error_msg:
                 fatigue_logger.warning(f"[{request_id}] No face detected or error occurred: {error_msg}")
-                # If no face was detected, return an error
-                os.remove(original_path)  # Clean up original file
+                os.remove(original_path)
                 if os.path.exists(output_path):
-                    os.remove(output_path)  # Clean up output file
+                    os.remove(output_path)
                     
                 return jsonify({
                     'error': error_msg or 'No face detected in the video',
@@ -137,7 +157,7 @@ def analyze_fatigue(current_user):
             flight_id = flight['flight_id'] if flight else None
             fatigue_logger.info(f"[{request_id}] Associated flight ID: {flight_id}")
             
-            # Store the analysis
+            # Store the analysis (save only filename, not full path)
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO FatigueAnalysis 
@@ -149,7 +169,7 @@ def analyze_fatigue(current_user):
                 flight_id,
                 level,
                 percent/100 if percent else 0,
-                output_name
+                output_name  # Store only filename
             ))
             conn.commit()
             analysis_id = cursor.lastrowid
@@ -166,7 +186,7 @@ def analyze_fatigue(current_user):
                 'analysis_id': analysis_id,
                 'fatigue_level': level,
                 'neural_network_score': percent / 100 if percent else 0,
-                'video_path': output_name,
+                'video_path': output_name,  # Return only filename
                 'resolution': details.get('resolution', 'unknown'),
                 'fps': details.get('fps', 0),
                 'face_detection_ratio': details.get('face_detected_ratio', 0),
@@ -213,35 +233,115 @@ def analyze_fatigue(current_user):
         if conn:
             conn.close()
 
-@fatigue_bp.route('/history', methods=['GET'])
+@fatigue_bp.route('/analyze-flight', methods=['POST'])
 @token_required
-def get_fatigue_history(current_user):
+def analyze_flight(current_user):
+    request_id = str(uuid.uuid4())[:8]
+    fatigue_logger.info(f"[{request_id}] Starting flight analysis for user {current_user['employee_id']}")
+    
     conn = None
     try:
+        data = request.get_json()
+        if not data:
+            fatigue_logger.warning(f"[{request_id}] No JSON data in request")
+            return jsonify({'error': 'No data provided'}), 400
+
+        flight_id = data.get('flight_id')
+        video_path = data.get('video_path')
+        
+        if not flight_id or not video_path:
+            fatigue_logger.warning(f"[{request_id}] Missing flight_id or video_path")
+            return jsonify({'error': 'flight_id and video_path are required'}), 400
+
+        fatigue_logger.info(f"[{request_id}] Processing flight {flight_id} with video: {video_path}")
+
         conn = sqlite3.connect('database/database.db')
         conn.row_factory = sqlite3.Row
         
-        history = conn.execute('''
-            SELECT 
-                fa.analysis_id,
-                fa.analysis_date,
-                fa.fatigue_level,
-                fa.neural_network_score,
-                fa.feedback_score,
-                fa.video_path,
-                f.from_code,
-                f.to_code,
-                f.departure_time
-            FROM FatigueAnalysis fa
-            LEFT JOIN Flights f ON fa.flight_id = f.flight_id
-            WHERE fa.employee_id = ?
-            ORDER BY fa.analysis_date DESC
-        ''', (current_user['employee_id'],)).fetchall()
+        # Get flight information
+        flight = conn.execute('''
+            SELECT f.flight_id, f.from_code, f.to_code
+            FROM Flights f
+            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+            WHERE cm.employee_id = ?
+                AND f.flight_id = ?
+                AND f.arrival_time < datetime('now', 'localtime')
+        ''', (current_user['employee_id'], flight_id)).fetchone()
+
+        if not flight:
+            fatigue_logger.warning(f"[{request_id}] Flight not found or not completed for user")
+            return jsonify({'error': 'Flight not found or not completed'}), 404
+
+        # Get video file path using standardized function
+        full_video_path = get_video_file_path(video_path)
         
-        return jsonify([dict(row) for row in history])
+        fatigue_logger.info(f"[{request_id}] Looking for video at: {full_video_path}")
         
+        if not full_video_path or not os.path.exists(full_video_path):
+            fatigue_logger.error(f"[{request_id}] Video file not found: {video_path}")
+            return jsonify({'error': f'Video file not found: {video_path}'}), 404
+
+        # Generate output filename
+        output_name = f"analyzed_flight_{uuid.uuid4()}.mp4"
+        output_path = os.path.join(VIDEO_DIR, output_name)
+
+        fatigue_logger.info(f"[{request_id}] Starting flight video analysis")
+        
+        # Analyze the flight video
+        level, percent, details = analyze_source(
+            source=full_video_path, 
+            is_video_file=True,
+            output_file=output_path
+        )
+        
+        fatigue_logger.info(f"[{request_id}] Flight analysis completed - Level: {level}, Percent: {percent}")
+        
+        # Check if face was detected
+        if details.get('error'):
+            fatigue_logger.warning(f"[{request_id}] Flight analysis error: {details.get('error')}")
+            return jsonify({
+                'error': details.get('error'),
+                'details': details
+            }), 400
+
+        # Save results
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO FatigueAnalysis 
+            (employee_id, flight_id, fatigue_level, 
+             neural_network_score, analysis_date, video_path)
+            VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)
+        ''', (
+            current_user['employee_id'],
+            flight['flight_id'],
+            level,
+            percent/100 if percent else 0,
+            output_name  # Store only filename
+        ))
+        analysis_id = cursor.lastrowid
+        conn.commit()
+
+        fatigue_logger.info(f"[{request_id}] Flight analysis saved to database with ID: {analysis_id}")
+
+        # Return complete analysis data
+        result = {
+            'analysis_id': analysis_id,
+            'fatigue_level': level,
+            'neural_network_score': percent/100 if percent else 0,
+            'video_path': output_name,  # Return only filename
+            'from_code': flight['from_code'],
+            'to_code': flight['to_code'],
+            'resolution': details.get('resolution', 'unknown'),
+            'fps': details.get('fps', 0),
+            'face_detection_ratio': details.get('face_detected_ratio', 0),
+            'frames_analyzed': details.get('frames_analyzed', 0)
+        }
+        
+        fatigue_logger.info(f"[{request_id}] Flight analysis completed successfully: {result}")
+        return jsonify(result)
+
     except Exception as e:
-        logger.error(f"Error getting history: {str(e)}")
+        fatigue_logger.error(f"[{request_id}] Flight analysis error: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
     finally:
         if conn:
@@ -297,6 +397,40 @@ def submit_fatigue_feedback(current_user):
         if conn:
             conn.close()
 
+@fatigue_bp.route('/history', methods=['GET'])
+@token_required
+def get_fatigue_history(current_user):
+    conn = None
+    try:
+        conn = sqlite3.connect('database/database.db')
+        conn.row_factory = sqlite3.Row
+        
+        history = conn.execute('''
+            SELECT 
+                fa.analysis_id,
+                fa.analysis_date,
+                fa.fatigue_level,
+                fa.neural_network_score,
+                fa.feedback_score,
+                fa.video_path,
+                f.from_code,
+                f.to_code,
+                f.departure_time
+            FROM FatigueAnalysis fa
+            LEFT JOIN Flights f ON fa.flight_id = f.flight_id
+            WHERE fa.employee_id = ?
+            ORDER BY fa.analysis_date DESC
+        ''', (current_user['employee_id'],)).fetchall()
+        
+        return jsonify([dict(row) for row in history])
+        
+    except Exception as e:
+        logger.error(f"Error getting history: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
 @fatigue_bp.route('/<int:analysis_id>', methods=['GET'])
 @token_required
 def get_analysis(current_user, analysis_id):
@@ -319,214 +453,6 @@ def get_analysis(current_user, analysis_id):
     except Exception as e:
         logger.error(f"Error getting analysis: {str(e)}")
         return jsonify({'error': str(e)}), 500
-    finally:
-        if conn:
-            conn.close()
-
-@fatigue_bp.route('/analyze-flight', methods=['POST'])
-@token_required
-def analyze_flight(current_user):
-    request_id = str(uuid.uuid4())[:8]
-    fatigue_logger.info(f"[{request_id}] Starting flight analysis for user {current_user['employee_id']}")
-    
-    conn = None
-    try:
-        data = request.get_json()
-        if not data:
-            fatigue_logger.warning(f"[{request_id}] No JSON data in request")
-            return jsonify({'error': 'No data provided'}), 400
-
-        flight_id = data.get('flight_id')
-        video_path = data.get('video_path')
-        
-        if not flight_id or not video_path:
-            fatigue_logger.warning(f"[{request_id}] Missing flight_id or video_path")
-            return jsonify({'error': 'flight_id and video_path are required'}), 400
-
-        fatigue_logger.info(f"[{request_id}] Processing flight {flight_id} with video: {video_path}")
-
-        conn = sqlite3.connect('database/database.db')
-        conn.row_factory = sqlite3.Row
-        
-        # Получаем информацию о рейсе (без проверки video_path в БД)
-        flight = conn.execute('''
-            SELECT f.flight_id, f.from_code, f.to_code
-            FROM Flights f
-            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
-            WHERE cm.employee_id = ?
-                AND f.flight_id = ?
-                AND f.arrival_time < datetime('now', 'localtime')
-        ''', (current_user['employee_id'], flight_id)).fetchone()
-
-        if not flight:
-            fatigue_logger.warning(f"[{request_id}] Flight not found or not completed for user")
-            return jsonify({'error': 'Flight not found or not completed'}), 404
-
-        # Определяем путь к видеофайлу
-        # Если video_path начинается с "/videos/", убираем этот префикс
-        if video_path.startswith('/video/'):
-            video_filename = video_path[8:]  # Убираем "/videos/"
-        else:
-            video_filename = video_path
-            
-        full_video_path = os.path.join(VIDEO_DIR, video_filename)
-        
-        fatigue_logger.info(f"[{request_id}] Looking for video at: {full_video_path}")
-        
-        if not os.path.exists(full_video_path):
-            fatigue_logger.error(f"[{request_id}] Video file not found: {full_video_path}")
-            return jsonify({'error': f'Video file not found: {video_filename}'}), 404
-
-        # Generate output filename
-        output_name = f"analyzed_flight_{uuid.uuid4()}.mp4"
-        output_path = os.path.join(VIDEO_DIR, output_name)
-
-        fatigue_logger.info(f"[{request_id}] Starting flight video analysis")
-        
-        # Analyze the flight video
-        level, percent, details = analyze_source(
-            source=full_video_path, 
-            is_video_file=True,
-            output_file=output_path
-        )
-        
-        fatigue_logger.info(f"[{request_id}] Flight analysis completed - Level: {level}, Percent: {percent}")
-        
-        # Check if face was detected
-        if details.get('error'):
-            fatigue_logger.warning(f"[{request_id}] Flight analysis error: {details.get('error')}")
-            return jsonify({
-                'error': details.get('error'),
-                'details': details
-            }), 400
-
-        # Save results
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO FatigueAnalysis 
-            (employee_id, flight_id, fatigue_level, 
-             neural_network_score, analysis_date, video_path)
-            VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)
-        ''', (
-            current_user['employee_id'],
-            flight['flight_id'],
-            level,
-            percent/100 if percent else 0,
-            output_name
-        ))
-        analysis_id = cursor.lastrowid
-        conn.commit()
-
-        fatigue_logger.info(f"[{request_id}] Flight analysis saved to database with ID: {analysis_id}")
-
-        # Return complete analysis data
-        result = {
-            'analysis_id': analysis_id,
-            'fatigue_level': level,
-            'neural_network_score': percent/100 if percent else 0,
-            'video_path': output_name,
-            'from_code': flight['from_code'],
-            'to_code': flight['to_code'],
-            'resolution': details.get('resolution', 'unknown'),
-            'fps': details.get('fps', 0),
-            'face_detection_ratio': details.get('face_detected_ratio', 0),
-            'frames_analyzed': details.get('frames_analyzed', 0)
-        }
-        
-        fatigue_logger.info(f"[{request_id}] Flight analysis completed successfully: {result}")
-        return jsonify(result)
-
-    except Exception as e:
-        fatigue_logger.error(f"[{request_id}] Flight analysis error: {traceback.format_exc()}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        if conn:
-            conn.close()
-
-@fatigue_bp.route('/save-recording', methods=['POST'])
-@token_required
-def save_recording(current_user):
-    request_id = str(uuid.uuid4())[:8]
-    fatigue_logger.info(f"[{request_id}] Saving recording for user {current_user['employee_id']}")
-    
-    conn = None
-    saved_path = None
-    try:
-        if 'video' not in request.files:
-            fatigue_logger.warning(f"[{request_id}] No video file in request")
-            return jsonify({'error': 'No video file provided'}), 400
-            
-        video_file = request.files['video']
-        if not video_file or video_file.filename == '':
-            fatigue_logger.warning(f"[{request_id}] Invalid video file")
-            return jsonify({'error': 'Invalid video file'}), 400
-
-        # Get file extension and generate unique name
-        file_ext = video_file.filename.split('.')[-1].lower()
-        if not allowed_file(video_file.filename):
-            fatigue_logger.error(f"[{request_id}] Unsupported file format: {file_ext}")
-            return jsonify({'error': f'Unsupported format. Allowed: {ALLOWED_EXTENSIONS}'}), 400
-
-        # Generate filename for saved recording
-        unique_id = uuid.uuid4()
-        saved_name = f"saved_{unique_id}.{file_ext}"
-        saved_path = os.path.join(VIDEO_DIR, saved_name)
-
-        fatigue_logger.info(f"[{request_id}] Saving recording to: {saved_path}")
-
-        # Save the video file
-        video_file.save(saved_path)
-        
-        # Check file size
-        file_size = os.path.getsize(saved_path)
-        fatigue_logger.info(f"[{request_id}] Saved file size: {file_size} bytes")
-
-        if file_size == 0:
-            fatigue_logger.error(f"[{request_id}] Saved file is empty")
-            os.remove(saved_path)
-            return jsonify({'error': 'Saved video file is empty'}), 400
-
-        # Save record to database with corrected values
-        conn = sqlite3.connect('database/database.db')
-        conn.row_factory = sqlite3.Row
-        
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO FatigueAnalysis 
-            (employee_id, flight_id, fatigue_level, 
-             neural_network_score, analysis_date, video_path)
-            VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)
-        ''', (
-            current_user['employee_id'],
-            None,  # No flight associated with saved recording
-            'Saved',  # Now this value is allowed in CHECK constraint
-            0.0,  # No analysis score for saved recordings
-            saved_name
-        ))
-        conn.commit()
-        record_id = cursor.lastrowid
-        
-        fatigue_logger.info(f"[{request_id}] Recording saved to database with ID: {record_id}")
-        
-        return jsonify({
-            'status': 'success',
-            'record_id': record_id,
-            'video_path': saved_name,
-            'message': 'Recording saved successfully'
-        }), 201
-
-    except Exception as e:
-        fatigue_logger.error(f"[{request_id}] Save recording error: {traceback.format_exc()}")
-        
-        # Clean up file if it was created
-        if saved_path and os.path.exists(saved_path):
-            os.remove(saved_path)
-            fatigue_logger.info(f"[{request_id}] Cleaned up file after error")
-            
-        return jsonify({
-            'error': 'Failed to save recording',
-            'details': str(e)
-        }), 500
     finally:
         if conn:
             conn.close()

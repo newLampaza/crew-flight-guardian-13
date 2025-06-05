@@ -89,9 +89,9 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         const formattedHistory = response.data.map((item: any) => ({
           analysis_id: item.analysis_id,
           neural_network_score: item.neural_network_score || 0,
-          analysis_date: item.analysis_date, // Сохраняем оригинальную дату для фильтрации
+          analysis_date: item.analysis_date,
           fatigue_level: item.fatigue_level,
-          flight_id: item.flight_id, // Добавляем flight_id для определения типа анализа
+          flight_id: item.flight_id,
           from_code: item.from_code,
           to_code: item.to_code
         }));
@@ -100,19 +100,16 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       }
     } catch (error) {
       console.error('Failed to load history:', error);
-      // В случае ошибки загружаем пустой массив
       setHistoryData([]);
     }
   };
 
   const submitFeedback = async (analysisId: number, score: number) => {
     try {
-      // Используем правильный эндпоинт из feedback.py
-      await apiClient.post('/feedback', {
-        entity_type: 'fatigue_analysis',
-        entity_id: analysisId,
-        rating: score,
-        comments: `Оценка анализа усталости: ${score} из 5`
+      // Use the correct fatigue feedback endpoint
+      await apiClient.post('/fatigue/feedback', {
+        analysis_id: analysisId,
+        score: score
       });
       
       toast({
@@ -224,8 +221,12 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 40,
       });
 
-      // Используем существующий video_path из данных рейса
-      const videoPath = flight?.video_path || `/video/flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
+      // Use the video_path from flight data directly
+      const videoPath = flight?.video_path;
+      
+      if (!videoPath) {
+        throw new Error('Video path not found for this flight');
+      }
 
       const response = await apiClient.post('/fatigue/analyze-flight', {
         flight_id: flight?.flight_id,
@@ -244,7 +245,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       setAnalysisProgress({loading: false, message: '', percent: 0});
       
       if (error.response?.status === 404) {
-        const expectedFile = flight?.video_path || `flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
+        const expectedFile = flight?.video_path;
         toast({
           title: "Видео не найдено",
           description: `Видео рейса не найдено. Убедитесь, что файл ${expectedFile} существует в папке neural_network/data/video/`,

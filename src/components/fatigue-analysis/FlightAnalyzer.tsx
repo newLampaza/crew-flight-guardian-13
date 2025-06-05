@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { History, Video, AlertTriangle } from 'lucide-react';
@@ -42,13 +43,20 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
     }
   };
 
-  // Используем реальный путь к видео из данных рейса
-  const actualVideoPath = lastFlight?.video_path;
-  const expectedVideoFile = actualVideoPath 
-    ? actualVideoPath.split('/').pop() // Извлекаем только имя файла
-    : lastFlight 
-      ? `flight_${lastFlight.flight_id}_${lastFlight.from_code}_${lastFlight.to_code}.mp4`
-      : 'default_flight_video.mp4';
+  // Extract filename from video path for display
+  const getVideoFileName = (videoPath?: string) => {
+    if (!videoPath) return null;
+    
+    // Remove path prefixes to get just the filename
+    if (videoPath.startsWith('/videos/')) {
+      return videoPath.substring(8);
+    } else if (videoPath.startsWith('/video/')) {
+      return videoPath.substring(7);
+    }
+    return videoPath;
+  };
+
+  const videoFileName = getVideoFileName(lastFlight?.video_path);
 
   return (
     <div className="p-6 border rounded-lg transition-all duration-200 border-border">
@@ -77,17 +85,17 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
             </p>
           )}
           
-          <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <span className="text-sm font-medium">
-                {actualVideoPath ? 'Путь к видео:' : 'Ожидаемый файл видео:'}
-              </span>
+          {videoFileName && (
+            <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-md">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium">Видео файл:</span>
+              </div>
+              <code className="text-xs text-muted-foreground break-all">
+                {videoFileName}
+              </code>
             </div>
-            <code className="text-xs text-muted-foreground break-all">
-              {actualVideoPath || `neural_network/data/video/${expectedVideoFile}`}
-            </code>
-          </div>
+          )}
         </div>
       ) : (
         <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-md">
@@ -99,7 +107,7 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
       
       <Button 
         onClick={handleAnalyzeClick}
-        disabled={!lastFlight || isAnalyzing}
+        disabled={!lastFlight || !videoFileName || isAnalyzing}
         className="w-full"
         aria-label="Анализировать последний рейс"
       >
@@ -108,12 +116,9 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
           : 'Проанализировать видео рейса'}
       </Button>
       
-      {lastFlight && (
+      {lastFlight && videoFileName && (
         <p className="mt-3 text-xs text-muted-foreground">
-          {actualVideoPath 
-            ? `Будет использован файл: ${expectedVideoFile}`
-            : `Убедитесь, что видео файл ${expectedVideoFile} находится в папке neural_network/data/video/`
-          }
+          Убедитесь, что видео файл {videoFileName} находится в папке neural_network/data/video/
         </p>
       )}
     </div>

@@ -68,7 +68,6 @@ app.register_blueprint(debug_bp)
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
-    # Проверяем существование директории для статических файлов
     static_dir = 'site/dist'
     if not os.path.exists(static_dir):
         logger.error(f"Static directory '{static_dir}' does not exist")
@@ -83,14 +82,20 @@ def serve(path):
         return jsonify({"error": "Frontend not built. Please run 'npm run build' first."}), 500
 
 def get_video_file_path(filename):
-    """Найти полный путь к видеофайлу"""
+    """Find video file by filename only"""
     video_dir = os.path.join('neural_network', 'data', 'video')
     
-    # Проверяем наличие файла в основной директории
+    # Remove any path prefixes and use only the filename
+    if filename.startswith('/videos/'):
+        filename = filename[8:]  # Remove '/videos/' prefix
+    elif filename.startswith('/video/'):
+        filename = filename[7:]   # Remove '/video/' prefix
+    
+    # Check if file exists directly
     if os.path.exists(os.path.join(video_dir, filename)):
         return os.path.join(video_dir, filename)
     
-    # Используем "гибкий" поиск - проверяем только имя файла без учёта пути
+    # Search recursively if not found directly
     for root, dirs, files in os.walk(video_dir):
         if filename in files:
             return os.path.join(root, filename)
@@ -98,10 +103,10 @@ def get_video_file_path(filename):
     return None
 
 def stream_video(file_path):
-    """Потоковая передача видео с поддержкой Range requests"""
+    """Stream video with Range request support"""
     def generate():
         with open(file_path, 'rb') as f:
-            data = f.read(8192)  # Читаем блоками по 8KB
+            data = f.read(8192)
             while data:
                 yield data
                 data = f.read(8192)
@@ -110,7 +115,6 @@ def stream_video(file_path):
     range_header = request.headers.get('Range')
     
     if not range_header:
-        # Полная передача файла
         response = Response(
             generate(),
             status=200,
@@ -122,10 +126,9 @@ def stream_video(file_path):
                 'Content-Disposition': 'inline'
             }
         )
-        
         return response
     
-    # Обработка Range requests для потокового воспроизведения
+    # Handle Range requests
     byte_start = 0
     byte_end = file_size - 1
     
@@ -162,29 +165,26 @@ def stream_video(file_path):
             'Cache-Control': 'no-cache',
             'Content-Disposition': 'inline'
         }
-        
     )
     
     return response
 
-# Улучшенная обработка запросов к видео-файлам 
 @app.route('/api/video/<path:filename>')
 def serve_video(filename):
-    """Обработка запросов к видеофайлам с поддержкой потокового воспроизведения"""
-    logger.info(f"Запрос видео: {filename}")
+    """Serve video files with streaming support"""
+    logger.info(f"Video request: {filename}")
     
     file_path = get_video_file_path(filename)
     
     if file_path and os.path.exists(file_path):
-        logger.info(f"Найден файл: {file_path}")
+        logger.info(f"Found video file: {file_path}")
         try:
             return stream_video(file_path)
         except Exception as e:
-            logger.error(f"Ошибка при передаче видео {filename}: {e}")
+            logger.error(f"Error streaming video {filename}: {e}")
             return jsonify({"error": "Video streaming error"}), 500
     
-    # Если файл не найден
-    logger.error(f"Видео-файл не найден: {filename}")
+    logger.error(f"Video file not found: {filename}")
     return jsonify({"error": "Video file not found"}), 404
 
 # Test sessions storage for cognitive tests
