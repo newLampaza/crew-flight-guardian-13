@@ -83,23 +83,67 @@ def serve(path):
 
 def get_video_file_path(filename):
     """Find video file by filename only"""
+    logger.info(f"[VIDEO_SEARCH] Starting search for video file: '{filename}'")
+    
     video_dir = os.path.join('neural_network', 'data', 'video')
+    logger.info(f"[VIDEO_SEARCH] Video directory: '{video_dir}'")
+    logger.info(f"[VIDEO_SEARCH] Video directory exists: {os.path.exists(video_dir)}")
+    
+    # Log directory contents
+    if os.path.exists(video_dir):
+        try:
+            files_in_dir = os.listdir(video_dir)
+            logger.info(f"[VIDEO_SEARCH] Files in video directory ({len(files_in_dir)} total):")
+            for i, file in enumerate(files_in_dir[:10]):  # Show first 10 files
+                logger.info(f"[VIDEO_SEARCH]   {i+1}. '{file}'")
+            if len(files_in_dir) > 10:
+                logger.info(f"[VIDEO_SEARCH]   ... and {len(files_in_dir) - 10} more files")
+        except Exception as e:
+            logger.error(f"[VIDEO_SEARCH] Error listing directory contents: {e}")
     
     # Remove any path prefixes and use only the filename
+    original_filename = filename
     if filename.startswith('/videos/'):
         filename = filename[8:]  # Remove '/videos/' prefix
+        logger.info(f"[VIDEO_SEARCH] Removed '/videos/' prefix: '{original_filename}' -> '{filename}'")
     elif filename.startswith('/video/'):
         filename = filename[7:]   # Remove '/video/' prefix
+        logger.info(f"[VIDEO_SEARCH] Removed '/video/' prefix: '{original_filename}' -> '{filename}'")
+    
+    logger.info(f"[VIDEO_SEARCH] Final filename to search: '{filename}'")
     
     # Check if file exists directly
-    if os.path.exists(os.path.join(video_dir, filename)):
-        return os.path.join(video_dir, filename)
+    direct_path = os.path.join(video_dir, filename)
+    logger.info(f"[VIDEO_SEARCH] Checking direct path: '{direct_path}'")
+    logger.info(f"[VIDEO_SEARCH] Direct path exists: {os.path.exists(direct_path)}")
+    
+    if os.path.exists(direct_path):
+        logger.info(f"[VIDEO_SEARCH] ✓ Found video file at direct path: {direct_path}")
+        return direct_path
     
     # Search recursively if not found directly
-    for root, dirs, files in os.walk(video_dir):
-        if filename in files:
-            return os.path.join(root, filename)
+    logger.info(f"[VIDEO_SEARCH] Starting recursive search in '{video_dir}'")
+    found_files = []
     
+    for root, dirs, files in os.walk(video_dir):
+        logger.info(f"[VIDEO_SEARCH] Searching in subdirectory: '{root}' (contains {len(files)} files)")
+        
+        for file in files:
+            if file == filename:
+                found_path = os.path.join(root, file)
+                found_files.append(found_path)
+                logger.info(f"[VIDEO_SEARCH] ✓ Found matching file: '{found_path}'")
+            
+            # Log partial matches for debugging
+            if filename.lower() in file.lower() or file.lower() in filename.lower():
+                logger.info(f"[VIDEO_SEARCH] Partial match found: '{file}' (looking for '{filename}')")
+    
+    if found_files:
+        result_path = found_files[0]
+        logger.info(f"[VIDEO_SEARCH] ✓ Returning first found file: {result_path}")
+        return result_path
+    
+    logger.error(f"[VIDEO_SEARCH] ✗ Video file '{filename}' not found in '{video_dir}' or subdirectories")
     return None
 
 def stream_video(file_path):
@@ -172,19 +216,19 @@ def stream_video(file_path):
 @app.route('/api/video/<path:filename>')
 def serve_video(filename):
     """Serve video files with streaming support"""
-    logger.info(f"Video request: {filename}")
+    logger.info(f"[VIDEO_REQUEST] Video request received: '{filename}'")
     
     file_path = get_video_file_path(filename)
     
     if file_path and os.path.exists(file_path):
-        logger.info(f"Found video file: {file_path}")
+        logger.info(f"[VIDEO_REQUEST] ✓ Found video file: '{file_path}'")
         try:
             return stream_video(file_path)
         except Exception as e:
-            logger.error(f"Error streaming video {filename}: {e}")
+            logger.error(f"[VIDEO_REQUEST] ✗ Error streaming video '{filename}': {e}")
             return jsonify({"error": "Video streaming error"}), 500
     
-    logger.error(f"Video file not found: {filename}")
+    logger.error(f"[VIDEO_REQUEST] ✗ Video file not found: '{filename}'")
     return jsonify({"error": "Video file not found"}), 404
 
 # Test sessions storage for cognitive tests

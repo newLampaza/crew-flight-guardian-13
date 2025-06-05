@@ -37,22 +37,66 @@ def allowed_file(filename):
 
 def get_video_file_path(filename):
     """Find video file path by filename only"""
+    fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Starting search for video file: '{filename}'")
+    
+    fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Video directory: '{VIDEO_DIR}'")
+    fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Video directory exists: {os.path.exists(VIDEO_DIR)}")
+    
+    # Log directory contents
+    if os.path.exists(VIDEO_DIR):
+        try:
+            files_in_dir = os.listdir(VIDEO_DIR)
+            fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Files in video directory ({len(files_in_dir)} total):")
+            for i, file in enumerate(files_in_dir[:10]):  # Show first 10 files
+                fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH]   {i+1}. '{file}'")
+            if len(files_in_dir) > 10:
+                fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH]   ... and {len(files_in_dir) - 10} more files")
+        except Exception as e:
+            fatigue_logger.error(f"[FATIGUE_VIDEO_SEARCH] Error listing directory contents: {e}")
+    
     # Remove any path prefixes and use only the filename
+    original_filename = filename
     if filename.startswith('/videos/'):
         filename = filename[8:]  # Remove '/videos/' prefix
+        fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Removed '/videos/' prefix: '{original_filename}' -> '{filename}'")
     elif filename.startswith('/video/'):
-        filename = filename[7:]  # Remove '/video/' prefix
+        filename = filename[7:]   # Remove '/video/' prefix
+        fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Removed '/video/' prefix: '{original_filename}' -> '{filename}'")
+    
+    fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Final filename to search: '{filename}'")
     
     # Check if file exists in video directory
     full_path = os.path.join(VIDEO_DIR, filename)
+    fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Checking direct path: '{full_path}'")
+    fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Direct path exists: {os.path.exists(full_path)}")
+    
     if os.path.exists(full_path):
+        fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] ✓ Found video file at direct path: {full_path}")
         return full_path
     
     # If not found, search recursively
-    for root, dirs, files in os.walk(VIDEO_DIR):
-        if filename in files:
-            return os.path.join(root, filename)
+    fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Starting recursive search in '{VIDEO_DIR}'")
+    found_files = []
     
+    for root, dirs, files in os.walk(VIDEO_DIR):
+        fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Searching in subdirectory: '{root}' (contains {len(files)} files)")
+        
+        if filename in files:
+            found_path = os.path.join(root, filename)
+            found_files.append(found_path)
+            fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] ✓ Found matching file: '{found_path}'")
+            
+        # Log partial matches for debugging
+        for file in files:
+            if filename.lower() in file.lower() or file.lower() in filename.lower():
+                fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] Partial match found: '{file}' (looking for '{filename}')")
+    
+    if found_files:
+        result_path = found_files[0]
+        fatigue_logger.info(f"[FATIGUE_VIDEO_SEARCH] ✓ Returning first found file: {result_path}")
+        return result_path
+    
+    fatigue_logger.error(f"[FATIGUE_VIDEO_SEARCH] ✗ Video file '{filename}' not found in '{VIDEO_DIR}' or subdirectories")
     return None
 
 @fatigue_bp.route('/analyze', methods=['POST'])
