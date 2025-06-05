@@ -225,7 +225,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       });
 
       // Используем существующий video_path из данных рейса
-      const videoPath = flight?.video_path || `/videos/flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
+      const videoPath = flight?.video_path || `/video/flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
 
       const response = await apiClient.post('/fatigue/analyze-flight', {
         flight_id: flight?.flight_id,

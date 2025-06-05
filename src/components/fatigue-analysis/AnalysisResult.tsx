@@ -76,7 +76,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({
     // Form full URL to API endpoint with cache busting
     const apiBase = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
     const timestamp = Date.now();
-    return `${apiBase}/videos/${fileName}?t=${timestamp}`;
+    return `${apiBase}/video/${fileName}?t=${timestamp}`;
   };
 
   const reloadVideo = () => {

@@ -255,7 +255,7 @@ def analyze_source(source, is_video_file=False, output_file=None):
         
         out = None
         if output_file:
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*'H264')
             out = cv2.VideoWriter(output_file, fourcc, 20.0, 
                                 (frame_width, frame_height))
             logger.info(f"Output video writer initialized: {output_file}")

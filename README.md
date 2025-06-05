@@ -49,6 +49,7 @@ cp .env.example .env
 
 1. Install Node.js dependencies:
 ```bash
+pip install "protobuf>=3.20,<4"
 npm install date-fns@^3.0.0
 npm install --legacy-peer-deps
 npm install --force

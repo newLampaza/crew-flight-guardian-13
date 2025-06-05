@@ -364,7 +364,7 @@ def analyze_flight(current_user):
 
         # Определяем путь к видеофайлу
         # Если video_path начинается с "/videos/", убираем этот префикс
-        if video_path.startswith('/videos/'):
+        if video_path.startswith('/video/'):
             video_filename = video_path[8:]  # Убираем "/videos/"
         else:
             video_filename = video_path

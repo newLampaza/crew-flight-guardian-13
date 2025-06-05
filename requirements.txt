@@ -15,9 +15,10 @@ opencv-python==4.7.0.72
 numpy==1.23.5
 scikit-learn==1.2.2
 Pillow==9.5.0
+protobuf==3.20.3
 
 ffmpeg-python==0.2.0
-ffprobe==0.5
+#ffprobe==0.5
 
 mediapipe==0.10.21
 

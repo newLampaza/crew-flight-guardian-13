@@ -122,6 +122,7 @@ def stream_video(file_path):
                 'Content-Disposition': 'inline'
             }
         )
+        
         return response
     
     # Обработка Range requests для потокового воспроизведения
@@ -161,12 +162,13 @@ def stream_video(file_path):
             'Cache-Control': 'no-cache',
             'Content-Disposition': 'inline'
         }
+        
     )
     
     return response
 
 # Улучшенная обработка запросов к видео-файлам 
-@app.route('/api/videos/<path:filename>')
+@app.route('/api/video/<path:filename>')
 def serve_video(filename):
     """Обработка запросов к видеофайлам с поддержкой потокового воспроизведения"""
     logger.info(f"Запрос видео: {filename}")
