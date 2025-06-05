@@ -1,3 +1,4 @@
+
 import sqlite3
 import os
 from datetime import datetime, timedelta
@@ -71,7 +72,6 @@ airports = [
 ]
 aircrafts = ['Boeing 737', 'Airbus A320', 'Superjet 100', 'Boeing 777']
 conditions_list = ['Normal', 'Bad weather', 'Maintenance', 'Delayed']
-terminals = ['A', 'B', 'D', '1', '2']
 
 # Для 2 экипажей и 2 месяцев в обе стороны
 now = datetime.now()
@@ -89,22 +89,26 @@ for crew_id in [1, 2]:
         aircraft = random.choice(aircrafts)
         conditions = random.choice(conditions_list)
         flight_number = f"SU{str(flight_id).zfill(4)}"
-        flight_id += 1
-
+        
+        # Генерация video_path для рейса (только filename без пути)
+        video_path = f"flight_{flight_id}_{from_airport}_{to_airport}.mp4"
+        
         cursor.execute('''
             INSERT INTO Flights (
                 crew_id, flight_number, departure_time, arrival_time,
                 from_code, from_city, to_code, to_city,
-                aircraft, conditions
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                aircraft, conditions, video_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             crew_id, flight_number, 
             departure.strftime('%Y-%m-%dT%H:%M:%S'), 
             arrival.strftime('%Y-%m-%dT%H:%M:%S'),
             from_airport, from_city,
             to_airport, to_city,
-            aircraft, conditions
+            aircraft, conditions, video_path
         ))
+        
+        flight_id += 1
 
 # Add some classic test flights for demo scenarios
 demo_flights = [
@@ -114,21 +118,23 @@ demo_flights = [
 ]
 
 for flight in demo_flights:
+    video_path = f"flight_{flight_id}_{flight[4]}_{flight[6]}.mp4"
     cursor.execute('''
         INSERT INTO Flights (
             crew_id, flight_number, departure_time, arrival_time,
             from_code, from_city, to_code, to_city,
-            aircraft, conditions
+            aircraft, conditions, video_path
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         flight[0], flight[1], 
         flight[2].strftime('%Y-%m-%dT%H:%M:%S'),
         flight[3].strftime('%Y-%m-%dT%H:%M:%S'),
-        flight[4], flight[5], flight[6], flight[7], flight[8], flight[9]
+        flight[4], flight[5], flight[6], flight[7], flight[8], flight[9], video_path
     ))
+    flight_id += 1
 
-# Add medical checks (оставим прежнее)
+# Add medical checks
 medical_checks_data = [
     (1, '2024-01-01', '2025-01-01', 'passed', 'Dr. Smith', 'Regular check'),
     (2, '2024-01-15', '2025-01-15', 'passed', 'Dr. Johnson', 'Regular check')
@@ -143,7 +149,7 @@ for check in medical_checks_data:
         VALUES (?, ?, ?, ?, ?, ?)
     ''', check)
 
-# Add cognitive tests (оставим прежнее)
+# Add cognitive tests
 cognitive_tests_data = [
     (1, datetime.now().isoformat(), 'attention', 95.5, 300, '{"questions": 20, "correct": 19}'),
     (1, datetime.now().isoformat(), 'memory', 88.0, 240, '{"questions": 15, "correct": 13}'),
@@ -158,6 +164,37 @@ for test in cognitive_tests_data:
         )
         VALUES (?, ?, ?, ?, ?, ?)
     ''', test)
+
+# Add test fatigue analysis data
+fatigue_levels = ['Low', 'Medium', 'High']
+now_iso = datetime.now().isoformat()
+
+# Добавляем анализы усталости для некоторых рейсов
+sample_flight_ids = [1, 2, 3, 5, 8, 10, 15, 20, 25, 30]
+for i, flight_id in enumerate(sample_flight_ids):
+    # Получаем данные рейса для video_path
+    cursor.execute('SELECT from_code, to_code, video_path FROM Flights WHERE flight_id = ?', (flight_id,))
+    flight_data = cursor.fetchone()
+    
+    if flight_data:
+        from_code, to_code, video_path = flight_data
+        employee_id = random.choice([1, 2])  # Случайный пилот
+        fatigue_level = random.choice(fatigue_levels)
+        neural_score = random.uniform(0.1, 0.9)
+        feedback_score = random.randint(1, 5)
+        
+        cursor.execute('''
+            INSERT INTO FatigueAnalysis (
+                employee_id, flight_id, fatigue_level, neural_network_score,
+                feedback_score, analysis_date, video_path, notes,
+                resolution, fps
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            employee_id, flight_id, fatigue_level, neural_score,
+            feedback_score, now_iso, video_path, 
+            f'Анализ рейса {from_code}-{to_code}',
+            '640x480', 30.0
+        ))
 
 # Add test feedback data
 feedback_data = [
@@ -181,4 +218,6 @@ for feedback in feedback_data:
 conn.commit()
 conn.close()
 
-print("Тестовые данные успешно добавлены в базу данных! (много рейсов для расписания)")
+print("Тестовые данные успешно добавлены в базу данных!")
+print("Добавлены video_path для всех рейсов и тестовые данные анализа усталости.")
+print("Примеры video_path: flight_1_SVO_LED.mp4, flight_2_KZN_OVB.mp4, и т.д.")
