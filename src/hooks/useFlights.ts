@@ -14,6 +14,7 @@ export interface FlightApi {
   aircraft: string;
   conditions: string;
   crew_name?: string;
+  video_path?: string;
 }
 
 // Create axios instance with base configuration
@@ -41,19 +42,37 @@ api.interceptors.request.use(
 
 const fetchFlights = async (): Promise<FlightApi[]> => {
   try {
+    console.log('[useFlights] Fetching flights from API...');
     const response = await api.get("/api/flights");
+    
+    console.log('[useFlights] Raw API response:', response.data);
     
     if (!Array.isArray(response.data)) {
       if (response.data && Array.isArray(response.data.flights)) {
+        console.log('[useFlights] Found flights in nested data:', response.data.flights);
         return response.data.flights;
       }
+      console.log('[useFlights] No valid flight data found, returning empty array');
       return [];
     }
+    
+    console.log('[useFlights] Direct flight array found:', response.data);
+    
+    // Log each flight's video_path for debugging
+    response.data.forEach((flight: FlightApi, index: number) => {
+      console.log(`[useFlights] Flight ${index + 1}:`, {
+        flight_id: flight.flight_id,
+        from_code: flight.from_code,
+        to_code: flight.to_code,
+        video_path: flight.video_path,
+        arrival_time: flight.arrival_time
+      });
+    });
     
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      console.error("Error fetching flights:", {
+      console.error("[useFlights] Error fetching flights:", {
         status: error.response?.status,
         data: error.response?.data,
       });

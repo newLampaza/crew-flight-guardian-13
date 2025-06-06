@@ -214,6 +214,8 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
   };
 
   const analyzeFlight = async (flight?: Flight | null) => {
+    console.log('[useFatigueAnalysis] analyzeFlight called with:', flight);
+    
     try {
       setAnalysisProgress({
         loading: true,
@@ -224,14 +226,23 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       // Use the video_path from flight data directly
       const videoPath = flight?.video_path;
       
+      console.log('[useFatigueAnalysis] Video path from flight:', videoPath);
+      
       if (!videoPath) {
+        console.error('[useFatigueAnalysis] No video path found for flight');
         throw new Error('Video path not found for this flight');
       }
 
-      const response = await apiClient.post('/fatigue/analyze-flight', {
+      const requestData = {
         flight_id: flight?.flight_id,
         video_path: videoPath
-      });
+      };
+      
+      console.log('[useFatigueAnalysis] Sending analyze-flight request:', requestData);
+
+      const response = await apiClient.post('/fatigue/analyze-flight', requestData);
+
+      console.log('[useFatigueAnalysis] Analyze-flight response:', response.data);
 
       setAnalysisProgress({loading: false, message: '', percent: 100});
 
@@ -242,16 +253,19 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       }
       
     } catch (error: any) {
+      console.error('[useFatigueAnalysis] Flight analysis error:', error);
       setAnalysisProgress({loading: false, message: '', percent: 0});
       
       if (error.response?.status === 404) {
         const expectedFile = flight?.video_path;
+        console.error('[useFatigueAnalysis] Video file not found:', expectedFile);
         toast({
           title: "Видео не найдено",
           description: `Видео рейса не найдено. Убедитесь, что файл ${expectedFile} существует в папке neural_network/data/video/`,
           variant: "destructive"
         });
       } else {
+        console.error('[useFatigueAnalysis] Other error:', error.response?.data || error.message);
         toast({
           title: "Ошибка анализа рейса",
           description: error.message || "Неизвестная ошибка",

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { History, Video, AlertTriangle, FolderOpen, FileVideo } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -27,12 +27,25 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
   
+  // Debug logging for flight data
+  useEffect(() => {
+    console.log('[FlightAnalyzer] Flight data received:', {
+      lastFlight,
+      hasVideoPath: !!lastFlight?.video_path,
+      videoPath: lastFlight?.video_path,
+      flightId: lastFlight?.flight_id,
+      fromCode: lastFlight?.from_code,
+      toCode: lastFlight?.to_code
+    });
+  }, [lastFlight]);
+  
   const handleAnalyzeClick = async () => {
+    console.log('[FlightAnalyzer] Analyze button clicked');
     try {
       setIsAnalyzing(true);
       await onAnalyzeFlight();
     } catch (error) {
-      console.error('Failed to analyze flight:', error);
+      console.error('[FlightAnalyzer] Failed to analyze flight:', error);
       toast({
         title: 'Ошибка анализа',
         description: 'Не удалось проанализировать запись полета',
@@ -46,19 +59,47 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
   // Generate expected video filename based on flight data
   const getExpectedVideoFileName = (flight?: Flight | null) => {
     if (!flight?.flight_id || !flight?.from_code || !flight?.to_code) {
+      console.log('[FlightAnalyzer] Cannot generate filename - missing data:', {
+        flightId: flight?.flight_id,
+        fromCode: flight?.from_code,
+        toCode: flight?.to_code
+      });
       return null;
     }
-    return `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`;
+    const fileName = `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`;
+    console.log('[FlightAnalyzer] Generated expected filename:', fileName);
+    return fileName;
   };
 
   const expectedFileName = getExpectedVideoFileName(lastFlight);
   const videoExists = lastFlight?.video_path && expectedFileName;
+  
+  // Debug button state
+  const buttonDisabled = !lastFlight || !videoExists || isAnalyzing;
+  console.log('[FlightAnalyzer] Button state:', {
+    hasLastFlight: !!lastFlight,
+    videoExists,
+    isAnalyzing,
+    buttonDisabled,
+    videoPathFromDB: lastFlight?.video_path,
+    expectedFileName
+  });
 
   return (
     <div className="p-6 border rounded-lg transition-all duration-200 border-border">
       <div className="flex items-center gap-3 mb-4">
         <History className="h-5 w-5 text-primary" />
         <h3 className="text-lg font-medium">Анализ последнего рейса</h3>
+      </div>
+      
+      {/* Debug information */}
+      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md text-xs">
+        <strong>Debug Info:</strong>
+        <div>Flight ID: {lastFlight?.flight_id || 'N/A'}</div>
+        <div>Video Path (DB): {lastFlight?.video_path || 'N/A'}</div>
+        <div>Expected File: {expectedFileName || 'N/A'}</div>
+        <div>Video Exists: {videoExists ? 'Yes' : 'No'}</div>
+        <div>Button Disabled: {buttonDisabled ? 'Yes' : 'No'}</div>
       </div>
       
       {lastFlight ? (
@@ -128,7 +169,7 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
       
       <Button 
         onClick={handleAnalyzeClick}
-        disabled={!lastFlight || !videoExists || isAnalyzing}
+        disabled={buttonDisabled}
         className="w-full"
         aria-label="Анализировать последний рейс"
       >
