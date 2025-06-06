@@ -104,7 +104,8 @@ const FatigueAnalysisPage = () => {
           flight_id: flight.flight_id,
           route: `${flight.from_code} → ${flight.to_code}`,
           video_path: flight.video_path,
-          arrival_time: flight.arrival_time
+          arrival_time: flight.arrival_time,
+          departure_time: flight.departure_time
         });
       });
     }
@@ -114,12 +115,21 @@ const FatigueAnalysisPage = () => {
   const lastFlight = flights.length > 0 
     ? flights
         .filter(flight => {
-          const hasArrivalTime = flight.arrival_time && new Date(flight.arrival_time) < new Date();
+          const now = new Date();
+          const arrivalTime = flight.arrival_time ? new Date(flight.arrival_time) : null;
+          
+          // Рейс считается завершенным, если время прибытия прошло
+          const hasArrivalTime = arrivalTime && arrivalTime < now;
+          
           console.log(`[FatigueAnalysisPage] Flight ${flight.flight_id} filter check:`, {
             arrival_time: flight.arrival_time,
+            arrivalTime: arrivalTime?.toISOString(),
+            now: now.toISOString(),
             hasArrivalTime,
-            video_path: flight.video_path
+            video_path: flight.video_path,
+            timeDiff: arrivalTime ? (now.getTime() - arrivalTime.getTime()) / (1000 * 60 * 60) : 'N/A' // hours
           });
+          
           return hasArrivalTime;
         })
         .sort((a, b) => new Date(b.arrival_time).getTime() - new Date(a.arrival_time).getTime())[0] || null
