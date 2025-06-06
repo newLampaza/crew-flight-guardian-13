@@ -65,9 +65,19 @@ const fetchFlights = async (): Promise<FlightApi[]> => {
         from_code: flight.from_code,
         to_code: flight.to_code,
         video_path: flight.video_path,
-        arrival_time: flight.arrival_time
+        arrival_time: flight.arrival_time,
+        allFields: flight // Log all fields to see what we're getting
       });
     });
+    
+    // Check specifically for flight 31
+    const flight31 = response.data.find((f: FlightApi) => f.flight_id === 31);
+    if (flight31) {
+      console.log('[useFlights] Flight 31 found with video_path:', flight31.video_path);
+      console.log('[useFlights] Flight 31 all data:', flight31);
+    } else {
+      console.log('[useFlights] Flight 31 not found in response');
+    }
     
     return response.data;
   } catch (error) {
@@ -75,6 +85,7 @@ const fetchFlights = async (): Promise<FlightApi[]> => {
       console.error("[useFlights] Error fetching flights:", {
         status: error.response?.status,
         data: error.response?.data,
+        url: error.config?.url
       });
     }
     throw error; // Let react-query handle the error
