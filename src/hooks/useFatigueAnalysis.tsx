@@ -84,7 +84,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
 
   const loadHistory = async () => {
     try {
-      console.log('[useFatigueAnalysis] Loading history...');
       const response = await apiClient.get('/fatigue/history');
       if (response.data) {
         const formattedHistory = response.data.map((item: any) => ({
@@ -96,11 +95,11 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           from_code: item.from_code,
           to_code: item.to_code
         }));
-        console.log('[useFatigueAnalysis] Loaded history data:', formattedHistory);
+        console.log('Loaded history data:', formattedHistory);
         setHistoryData(formattedHistory);
       }
     } catch (error) {
-      console.error('[useFatigueAnalysis] Failed to load history:', error);
+      console.error('Failed to load history:', error);
       setHistoryData([]);
     }
   };
@@ -215,8 +214,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
   };
 
   const analyzeFlight = async (flight?: Flight | null) => {
-    console.log('[useFatigueAnalysis] analyzeFlight called with:', flight);
-    
     try {
       setAnalysisProgress({
         loading: true,
@@ -227,24 +224,14 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       // Use the video_path from flight data directly
       const videoPath = flight?.video_path;
       
-      console.log('[useFatigueAnalysis] Video path from flight:', videoPath);
-      
       if (!videoPath) {
-        console.error('[useFatigueAnalysis] No video path found in flight data');
         throw new Error('Video path not found for this flight');
       }
-
-      console.log('[useFatigueAnalysis] Sending flight analysis request:', {
-        flight_id: flight?.flight_id,
-        video_path: videoPath
-      });
 
       const response = await apiClient.post('/fatigue/analyze-flight', {
         flight_id: flight?.flight_id,
         video_path: videoPath
       });
-
-      console.log('[useFatigueAnalysis] Flight analysis response:', response.data);
 
       setAnalysisProgress({loading: false, message: '', percent: 100});
 
@@ -255,14 +242,10 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       }
       
     } catch (error: any) {
-      console.error('[useFatigueAnalysis] Flight analysis error:', error);
-      console.error('[useFatigueAnalysis] Error response:', error.response?.data);
-      
       setAnalysisProgress({loading: false, message: '', percent: 0});
       
       if (error.response?.status === 404) {
         const expectedFile = flight?.video_path;
-        console.error('[useFatigueAnalysis] Video file not found:', expectedFile);
         toast({
           title: "Видео не найдено",
           description: `Видео рейса не найдено. Убедитесь, что файл ${expectedFile} существует в папке neural_network/data/video/`,
