@@ -72,13 +72,17 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
   };
 
   const expectedFileName = getExpectedVideoFileName(lastFlight);
-  const videoExists = lastFlight?.video_path && expectedFileName;
+  
+  // Check if we have video path from API or can generate one
+  const hasVideoData = lastFlight?.video_path || expectedFileName;
   
   // Debug button state
-  const buttonDisabled = !lastFlight || !videoExists || isAnalyzing;
+  const buttonDisabled = !lastFlight || !hasVideoData || isAnalyzing;
   console.log('[FlightAnalyzer] Button state:', {
     hasLastFlight: !!lastFlight,
-    videoExists,
+    hasVideoPath: !!lastFlight?.video_path,
+    hasExpectedFileName: !!expectedFileName,
+    hasVideoData: !!hasVideoData,
     isAnalyzing,
     buttonDisabled,
     videoPathFromDB: lastFlight?.video_path,
@@ -96,9 +100,9 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md text-xs">
         <strong>Debug Info:</strong>
         <div>Flight ID: {lastFlight?.flight_id || 'N/A'}</div>
-        <div>Video Path (DB): {lastFlight?.video_path || 'N/A'}</div>
+        <div>Video Path (API): {lastFlight?.video_path || 'N/A'}</div>
         <div>Expected File: {expectedFileName || 'N/A'}</div>
-        <div>Video Exists: {videoExists ? 'Yes' : 'No'}</div>
+        <div>Has Video Data: {hasVideoData ? 'Yes' : 'No'}</div>
         <div>Button Disabled: {buttonDisabled ? 'Yes' : 'No'}</div>
       </div>
       
@@ -134,23 +138,30 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
             
             <div className="flex items-center gap-2">
               <FileVideo className="h-4 w-4 text-green-500" />
-              <span className="text-sm font-medium">Ожидаемое имя файла:</span>
+              <span className="text-sm font-medium">Файл для анализа:</span>
             </div>
             {expectedFileName ? (
               <div className="space-y-2">
                 <code className="block text-xs font-mono bg-slate-100 dark:bg-slate-800 p-2 rounded border">
-                  {expectedFileName}
+                  {lastFlight.video_path || expectedFileName}
                 </code>
                 <div className={`flex items-center gap-2 text-xs ${
-                  videoExists ? 'text-green-600' : 'text-red-600'
+                  hasVideoData ? 'text-green-600' : 'text-red-600'
                 }`}>
                   <div className={`w-2 h-2 rounded-full ${
-                    videoExists ? 'bg-green-500' : 'bg-red-500'
+                    hasVideoData ? 'bg-green-500' : 'bg-red-500'
                   }`} />
                   <span>
-                    {videoExists ? 'Файл найден' : 'Файл не найден'}
+                    {lastFlight.video_path 
+                      ? 'Путь из базы данных' 
+                      : 'Сгенерированное имя файла'}
                   </span>
                 </div>
+                {!lastFlight.video_path && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400">
+                    ⚠️ Поле video_path отсутствует в API. Используется сгенерированное имя.
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">
@@ -183,7 +194,7 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
           <p className="text-xs text-blue-700 dark:text-blue-300">
             <strong>Инструкция:</strong> Поместите видео файл с именем{' '}
             <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">
-              {expectedFileName}
+              {lastFlight.video_path || expectedFileName}
             </code>{' '}
             в папку{' '}
             <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">

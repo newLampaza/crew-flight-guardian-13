@@ -223,14 +223,19 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         percent: 40,
       });
 
-      // Use the video_path from flight data directly
-      const videoPath = flight?.video_path;
+      // Use video_path from flight data, or generate expected filename
+      let videoPath = flight?.video_path;
       
-      console.log('[useFatigueAnalysis] Video path from flight:', videoPath);
+      if (!videoPath && flight?.flight_id && flight?.from_code && flight?.to_code) {
+        videoPath = `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`;
+        console.log('[useFatigueAnalysis] Generated video path:', videoPath);
+      }
+      
+      console.log('[useFatigueAnalysis] Video path for analysis:', videoPath);
       
       if (!videoPath) {
-        console.error('[useFatigueAnalysis] No video path found for flight');
-        throw new Error('Video path not found for this flight');
+        console.error('[useFatigueAnalysis] No video path available for flight');
+        throw new Error('Video path not available for this flight');
       }
 
       const requestData = {
@@ -257,7 +262,7 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       setAnalysisProgress({loading: false, message: '', percent: 0});
       
       if (error.response?.status === 404) {
-        const expectedFile = flight?.video_path;
+        const expectedFile = flight?.video_path || `flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
         console.error('[useFatigueAnalysis] Video file not found:', expectedFile);
         toast({
           title: "Видео не найдено",
