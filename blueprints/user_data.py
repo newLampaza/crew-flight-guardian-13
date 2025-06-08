@@ -61,6 +61,7 @@ def get_flights():
                 f.to_city,
                 f.aircraft,
                 f.conditions,
+                f.video_path,
                 c.crew_name
             FROM Flights f
             JOIN Crews c ON f.crew_id = c.crew_id
