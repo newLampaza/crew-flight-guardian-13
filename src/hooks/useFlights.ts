@@ -1,6 +1,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
+import { formatDisplayDateTime, formatDisplayTime } from '../utils/dateUtils';
 
 export interface FlightApi {
   flight_id: number;
@@ -51,7 +52,19 @@ const fetchFlights = async (): Promise<FlightApi[]> => {
       return [];
     }
     
-    return response.data;
+    // Normalize datetime formats for consistency
+    const normalizedFlights = response.data.map(flight => ({
+      ...flight,
+      departure_time: flight.departure_time,
+      arrival_time: flight.arrival_time,
+      // Add computed display fields for convenience
+      departure_display: formatDisplayDateTime(flight.departure_time),
+      arrival_display: formatDisplayDateTime(flight.arrival_time),
+      departure_time_only: formatDisplayTime(flight.departure_time),
+      arrival_time_only: formatDisplayTime(flight.arrival_time)
+    }));
+    
+    return normalizedFlights;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       console.error("[useFlights] Error fetching flights:", {

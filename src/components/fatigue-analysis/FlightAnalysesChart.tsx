@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Plane, Clock, AlertTriangle } from 'lucide-react';
+import { isToday, formatDisplayTime } from '@/utils/dateUtils';
 
 interface FlightAnalysesChartProps {
   historyData: Array<{
@@ -22,16 +23,8 @@ export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ histor
 
   // Фильтруем только анализы рейсов за текущий день
   const getTodayFlightAnalyses = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
     return historyData.filter(item => {
-      const itemDate = new Date(item.analysis_date);
-      return item.flight_id && // Только анализы рейсов
-             itemDate >= today && 
-             itemDate < tomorrow;
+      return item.flight_id && isToday(item.analysis_date);
     });
   };
 
@@ -45,10 +38,7 @@ export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ histor
         : `Рейс ${item.flight_id}`,
       fatigue_score: Math.round((item.neural_network_score || 0) * 100),
       flight_id: item.flight_id,
-      time: new Date(item.analysis_date).toLocaleTimeString('ru-RU', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      }),
+      time: formatDisplayTime(item.analysis_date),
       level: item.fatigue_level || 'Unknown'
     }));
   };
