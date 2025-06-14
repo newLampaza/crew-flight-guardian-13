@@ -1,3 +1,4 @@
+
 import os
 import uuid
 import traceback
@@ -257,19 +258,20 @@ def analyze_flight(current_user):
         conn = sqlite3.connect('database/database.db')
         conn.row_factory = sqlite3.Row
         
-        # Get flight information - проверяем что рейс завершен
+        # Get flight information - убираем проверку времени и просто ищем рейс
         flight = conn.execute('''
-            SELECT f.flight_id, f.from_code, f.to_code, f.video_path
+            SELECT f.flight_id, f.from_code, f.to_code, f.video_path, f.arrival_time
             FROM Flights f
             JOIN CrewMembers cm ON f.crew_id = cm.crew_id
             WHERE cm.employee_id = ?
                 AND f.flight_id = ?
-                AND f.arrival_time < datetime('now', 'localtime')
         ''', (current_user['employee_id'], flight_id)).fetchone()
 
         if not flight:
-            fatigue_logger.warning(f"[{request_id}] Flight not found or not completed for user")
-            return jsonify({'error': 'Flight not found or not completed'}), 404
+            fatigue_logger.warning(f"[{request_id}] Flight not found for user")
+            return jsonify({'error': 'Flight not found'}), 404
+
+        fatigue_logger.info(f"[{request_id}] Flight found: {dict(flight)}")
 
         # Get video file path using standardized function
         full_video_path = get_video_file_path(video_path)
