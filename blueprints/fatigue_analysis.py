@@ -58,6 +58,7 @@ def get_video_file_path(filename):
 @fatigue_bp.route('/analyze', methods=['POST'])
 @token_required
 def analyze_fatigue(current_user):
+    # ... keep existing code (analyze_fatigue function implementation)
     request_id = str(uuid.uuid4())[:8]
     fatigue_logger.info(f"[{request_id}] Starting fatigue analysis for user {current_user['employee_id']}")
     
@@ -258,19 +259,18 @@ def analyze_flight(current_user):
         conn = sqlite3.connect('database/database.db')
         conn.row_factory = sqlite3.Row
         
-        # Get flight information
+        # Get flight information - убираем проверку на завершенность рейса
         flight = conn.execute('''
-            SELECT f.flight_id, f.from_code, f.to_code
+            SELECT f.flight_id, f.from_code, f.to_code, f.video_path
             FROM Flights f
             JOIN CrewMembers cm ON f.crew_id = cm.crew_id
             WHERE cm.employee_id = ?
                 AND f.flight_id = ?
-                AND f.arrival_time < datetime('now', 'localtime')
         ''', (current_user['employee_id'], flight_id)).fetchone()
 
         if not flight:
-            fatigue_logger.warning(f"[{request_id}] Flight not found or not completed for user")
-            return jsonify({'error': 'Flight not found or not completed'}), 404
+            fatigue_logger.warning(f"[{request_id}] Flight not found for user")
+            return jsonify({'error': 'Flight not found'}), 404
 
         # Get video file path using standardized function
         full_video_path = get_video_file_path(video_path)
@@ -346,6 +346,8 @@ def analyze_flight(current_user):
     finally:
         if conn:
             conn.close()
+
+# ... keep existing code (feedback, history, and get_analysis functions)
 
 @fatigue_bp.route('/feedback', methods=['POST'])
 @token_required
