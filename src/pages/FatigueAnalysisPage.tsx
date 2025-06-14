@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -89,53 +90,16 @@ const FatigueAnalysisPage = () => {
   // Загружаем реальные данные о рейсах
   const { data: flights = [], isLoading: flightsLoading } = useFlights();
   
-  // Debug logging for flights data
-  useEffect(() => {
-    console.log('[FatigueAnalysisPage] Flights data:', {
-      flights,
-      flightsCount: flights.length,
-      isLoading: flightsLoading
-    });
-    
-    if (flights.length > 0) {
-      console.log('[FatigueAnalysisPage] All flights with video paths:');
-      flights.forEach((flight, index) => {
-        console.log(`  Flight ${index + 1}:`, {
-          flight_id: flight.flight_id,
-          route: `${flight.from_code} → ${flight.to_code}`,
-          video_path: flight.video_path,
-          arrival_time: flight.arrival_time,
-          departure_time: flight.departure_time
-        });
-      });
-    }
-  }, [flights, flightsLoading]);
-  
   // Получаем последний завершенный рейс
   const lastFlight = flights.length > 0 
     ? flights
         .filter(flight => {
           const now = new Date();
           const arrivalTime = flight.arrival_time ? new Date(flight.arrival_time) : null;
-          
-          // Рейс считается завершенным, если время прибытия прошло
-          const hasArrivalTime = arrivalTime && arrivalTime < now;
-          
-          console.log(`[FatigueAnalysisPage] Flight ${flight.flight_id} filter check:`, {
-            arrival_time: flight.arrival_time,
-            arrivalTime: arrivalTime?.toISOString(),
-            now: now.toISOString(),
-            hasArrivalTime,
-            video_path: flight.video_path,
-            timeDiff: arrivalTime ? (now.getTime() - arrivalTime.getTime()) / (1000 * 60 * 60) : 'N/A' // hours
-          });
-          
-          return hasArrivalTime;
+          return arrivalTime && arrivalTime < now;
         })
         .sort((a, b) => new Date(b.arrival_time).getTime() - new Date(a.arrival_time).getTime())[0] || null
     : null;
-
-  console.log('[FatigueAnalysisPage] Selected last flight:', lastFlight);
 
   // Use our custom hooks
   const { 
@@ -150,7 +114,7 @@ const FatigueAnalysisPage = () => {
     loadHistory,
     formatDate
   } = useFatigueAnalysis((result) => {
-    console.log('Analysis completed:', result);
+    // Analysis completed
   });
   
   const { 
@@ -190,7 +154,6 @@ const FatigueAnalysisPage = () => {
   };
 
   const handleAnalyzeFlight = () => {
-    console.log('[FatigueAnalysisPage] handleAnalyzeFlight called with lastFlight:', lastFlight);
     analyzeFlight(lastFlight);
   };
 
@@ -212,16 +175,6 @@ const FatigueAnalysisPage = () => {
 
   return (
     <div className="space-y-8 animate-fade-in p-6">
-      {/* Debug panel */}
-      <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm">
-        <strong>Debug Information:</strong>
-        <div>Flights loaded: {flights.length}</div>
-        <div>Loading: {flightsLoading ? 'Yes' : 'No'}</div>
-        <div>Last flight ID: {lastFlight?.flight_id || 'None'}</div>
-        <div>Last flight video path: {lastFlight?.video_path || 'None'}</div>
-        <div>Last flight route: {lastFlight ? `${lastFlight.from_code} → ${lastFlight.to_code}` : 'None'}</div>
-      </div>
-
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight mb-1">Анализ усталости</h1>

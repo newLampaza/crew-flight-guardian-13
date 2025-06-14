@@ -1,4 +1,5 @@
 
+
 import os
 import uuid
 import traceback
@@ -11,14 +12,14 @@ from datetime import datetime
 from neural_network.predict import analyze_source
 from blueprints.auth import token_required
 
-# Setup logging
+# Setup logging for errors only
 fatigue_logger = logging.getLogger('fatigue_analysis')
-fatigue_logger.setLevel(logging.INFO)
+fatigue_logger.setLevel(logging.ERROR)
 
-# Create file handler for fatigue analysis logs
+# Create file handler for fatigue analysis logs (errors only)
 if not fatigue_logger.handlers:
     fh = logging.FileHandler('fatigue_analysis.log', encoding='utf-8')
-    fh.setLevel(logging.INFO)
+    fh.setLevel(logging.ERROR)
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     fh.setFormatter(formatter)
     fatigue_logger.addHandler(fh)
@@ -59,25 +60,19 @@ def get_video_file_path(filename):
 @token_required
 def analyze_fatigue(current_user):
     request_id = str(uuid.uuid4())[:8]
-    fatigue_logger.info(f"[{request_id}] Starting fatigue analysis for user {current_user['employee_id']}")
     
     conn = None
     try:
         if 'video' not in request.files:
-            fatigue_logger.warning(f"[{request_id}] No video file in request")
             return jsonify({'error': 'No video file provided'}), 400
             
         video_file = request.files['video']
         if not video_file or video_file.filename == '':
-            fatigue_logger.warning(f"[{request_id}] Invalid video file: {video_file}")
             return jsonify({'error': 'Invalid video file'}), 400
-
-        fatigue_logger.info(f"[{request_id}] Received video file: {video_file.filename}, size: {video_file.content_length} bytes")
 
         # Get file extension and generate unique names
         file_ext = video_file.filename.split('.')[-1].lower()
         if not allowed_file(video_file.filename):
-            fatigue_logger.error(f"[{request_id}] Unsupported file format: {file_ext}")
             return jsonify({'error': f'Unsupported format. Allowed: {ALLOWED_EXTENSIONS}'}), 400
 
         # Generate filenames (store only filename, not full path)
@@ -87,39 +82,29 @@ def analyze_fatigue(current_user):
         output_name = f"analyzed_{unique_id}.mp4"
         output_path = os.path.join(VIDEO_DIR, output_name)
 
-        fatigue_logger.info(f"[{request_id}] Generated paths - Original: {original_path}, Output: {output_path}")
-
         try:
             # Save original video
             video_file.save(original_path)
-            fatigue_logger.info(f"[{request_id}] Video saved successfully: {original_path}")
 
             # Check file size after saving
             file_size = os.path.getsize(original_path)
-            fatigue_logger.info(f"[{request_id}] Saved file size: {file_size} bytes")
 
             if file_size == 0:
-                fatigue_logger.error(f"[{request_id}] Saved file is empty")
                 os.remove(original_path)
                 return jsonify({'error': 'Uploaded video file is empty'}), 400
 
             # Analyze the video and save output with visualization
-            fatigue_logger.info(f"[{request_id}] Starting neural network analysis")
             level, percent, details = analyze_source(
                 source=original_path, 
                 is_video_file=True,
                 output_file=output_path
             )
             
-            fatigue_logger.info(f"[{request_id}] Analysis completed - Level: {level}, Percent: {percent}")
-            fatigue_logger.info(f"[{request_id}] Analysis details: {details}")
-            
             # Check if a face was detected
             face_detected = details.get('face_detected_ratio', 0) > 0
             error_msg = details.get('error')
             
             if not face_detected or error_msg:
-                fatigue_logger.warning(f"[{request_id}] No face detected or error occurred: {error_msg}")
                 os.remove(original_path)
                 if os.path.exists(output_path):
                     os.remove(output_path)
@@ -132,14 +117,9 @@ def analyze_fatigue(current_user):
 
             # Verify output file was created
             if not os.path.exists(output_path):
-                fatigue_logger.error(f"[{request_id}] Output video was not created: {output_path}")
                 return jsonify({'error': 'Failed to create analyzed video'}), 500
 
-            output_size = os.path.getsize(output_path)
-            fatigue_logger.info(f"[{request_id}] Output video created successfully, size: {output_size} bytes")
-
             # Save analysis to database
-            fatigue_logger.info(f"[{request_id}] Saving analysis to database")
             conn = sqlite3.connect('database/database.db')
             conn.row_factory = sqlite3.Row
             
@@ -155,7 +135,6 @@ def analyze_fatigue(current_user):
             ''', (current_user['employee_id'],)).fetchone()
             
             flight_id = flight['flight_id'] if flight else None
-            fatigue_logger.info(f"[{request_id}] Associated flight ID: {flight_id}")
             
             # Store the analysis (save only filename, not full path)
             cursor = conn.cursor()
@@ -174,11 +153,8 @@ def analyze_fatigue(current_user):
             conn.commit()
             analysis_id = cursor.lastrowid
             
-            fatigue_logger.info(f"[{request_id}] Analysis saved to database with ID: {analysis_id}")
-            
             # Clean up original file (keep only processed version)
             os.remove(original_path)
-            fatigue_logger.info(f"[{request_id}] Cleaned up original file: {original_path}")
             
             # Return the result with video path
             result = {
@@ -193,7 +169,6 @@ def analyze_fatigue(current_user):
                 'frames_analyzed': details.get('frames_analyzed', 0)
             }
             
-            fatigue_logger.info(f"[{request_id}] Analysis completed successfully: {result}")
             return jsonify(result), 201
 
         except Exception as e:
@@ -202,20 +177,16 @@ def analyze_fatigue(current_user):
             technical_msg = str(e)
             
             fatigue_logger.error(f"[{request_id}] Processing error: {technical_msg}")
-            fatigue_logger.error(f"[{request_id}] Full traceback: {traceback.format_exc()}")
             
             # Clean up any files
             if os.path.exists(original_path):
                 os.remove(original_path)
-                fatigue_logger.info(f"[{request_id}] Cleaned up original file after error")
             if os.path.exists(output_path):
                 os.remove(output_path)
-                fatigue_logger.info(f"[{request_id}] Cleaned up output file after error")
                 
             if "no face" in technical_msg.lower() or "face not detected" in technical_msg.lower():
                 user_msg = "No face detected in the video"
                 error_type = "face_detection_error"
-                fatigue_logger.warning(f"[{request_id}] Face detection error: {technical_msg}")
                 
             return jsonify({
                 'error': user_msg,
@@ -237,28 +208,23 @@ def analyze_fatigue(current_user):
 @token_required
 def analyze_flight(current_user):
     request_id = str(uuid.uuid4())[:8]
-    fatigue_logger.info(f"[{request_id}] Starting flight analysis for user {current_user['employee_id']}")
     
     conn = None
     try:
         data = request.get_json()
         if not data:
-            fatigue_logger.warning(f"[{request_id}] No JSON data in request")
             return jsonify({'error': 'No data provided'}), 400
 
         flight_id = data.get('flight_id')
         video_path = data.get('video_path')
         
         if not flight_id or not video_path:
-            fatigue_logger.warning(f"[{request_id}] Missing flight_id or video_path")
             return jsonify({'error': 'flight_id and video_path are required'}), 400
-
-        fatigue_logger.info(f"[{request_id}] Processing flight {flight_id} with video: {video_path}")
 
         conn = sqlite3.connect('database/database.db')
         conn.row_factory = sqlite3.Row
         
-        # Get flight information - убираем проверку времени и просто ищем рейс
+        # Get flight information
         flight = conn.execute('''
             SELECT f.flight_id, f.from_code, f.to_code, f.video_path, f.arrival_time
             FROM Flights f
@@ -268,25 +234,17 @@ def analyze_flight(current_user):
         ''', (current_user['employee_id'], flight_id)).fetchone()
 
         if not flight:
-            fatigue_logger.warning(f"[{request_id}] Flight not found for user")
             return jsonify({'error': 'Flight not found'}), 404
-
-        fatigue_logger.info(f"[{request_id}] Flight found: {dict(flight)}")
 
         # Get video file path using standardized function
         full_video_path = get_video_file_path(video_path)
         
-        fatigue_logger.info(f"[{request_id}] Looking for video at: {full_video_path}")
-        
         if not full_video_path or not os.path.exists(full_video_path):
-            fatigue_logger.error(f"[{request_id}] Video file not found: {video_path}")
             return jsonify({'error': f'Video file not found: {video_path}'}), 404
 
         # Generate output filename
         output_name = f"analyzed_flight_{uuid.uuid4()}.mp4"
         output_path = os.path.join(VIDEO_DIR, output_name)
-
-        fatigue_logger.info(f"[{request_id}] Starting flight video analysis")
         
         # Analyze the flight video
         level, percent, details = analyze_source(
@@ -295,11 +253,8 @@ def analyze_flight(current_user):
             output_file=output_path
         )
         
-        fatigue_logger.info(f"[{request_id}] Flight analysis completed - Level: {level}, Percent: {percent}")
-        
         # Check if face was detected
         if details.get('error'):
-            fatigue_logger.warning(f"[{request_id}] Flight analysis error: {details.get('error')}")
             return jsonify({
                 'error': details.get('error'),
                 'details': details
@@ -322,8 +277,6 @@ def analyze_flight(current_user):
         analysis_id = cursor.lastrowid
         conn.commit()
 
-        fatigue_logger.info(f"[{request_id}] Flight analysis saved to database with ID: {analysis_id}")
-
         # Return complete analysis data
         result = {
             'analysis_id': analysis_id,
@@ -338,7 +291,6 @@ def analyze_flight(current_user):
             'frames_analyzed': details.get('frames_analyzed', 0)
         }
         
-        fatigue_logger.info(f"[{request_id}] Flight analysis completed successfully: {result}")
         return jsonify(result)
 
     except Exception as e:

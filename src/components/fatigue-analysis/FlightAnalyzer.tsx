@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { History, Video, AlertTriangle, FolderOpen, FileVideo } from 'lucide-react';
+import { History, Video, FolderOpen, FileVideo } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Flight {
@@ -27,25 +27,11 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
   
-  // Debug logging for flight data
-  useEffect(() => {
-    console.log('[FlightAnalyzer] Flight data received:', {
-      lastFlight,
-      hasVideoPath: !!lastFlight?.video_path,
-      videoPath: lastFlight?.video_path,
-      flightId: lastFlight?.flight_id,
-      fromCode: lastFlight?.from_code,
-      toCode: lastFlight?.to_code
-    });
-  }, [lastFlight]);
-  
   const handleAnalyzeClick = async () => {
-    console.log('[FlightAnalyzer] Analyze button clicked');
     try {
       setIsAnalyzing(true);
       await onAnalyzeFlight();
     } catch (error) {
-      console.error('[FlightAnalyzer] Failed to analyze flight:', error);
       toast({
         title: 'Ошибка анализа',
         description: 'Не удалось проанализировать запись полета',
@@ -59,51 +45,20 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
   // Generate expected video filename based on flight data
   const getExpectedVideoFileName = (flight?: Flight | null) => {
     if (!flight?.flight_id || !flight?.from_code || !flight?.to_code) {
-      console.log('[FlightAnalyzer] Cannot generate filename - missing data:', {
-        flightId: flight?.flight_id,
-        fromCode: flight?.from_code,
-        toCode: flight?.to_code
-      });
       return null;
     }
-    const fileName = `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`;
-    console.log('[FlightAnalyzer] Generated expected filename:', fileName);
-    return fileName;
+    return `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`;
   };
 
   const expectedFileName = getExpectedVideoFileName(lastFlight);
-  
-  // Check if we have video path from API or can generate one
   const hasVideoData = lastFlight?.video_path || expectedFileName;
-  
-  // Debug button state
   const buttonDisabled = !lastFlight || !hasVideoData || isAnalyzing;
-  console.log('[FlightAnalyzer] Button state:', {
-    hasLastFlight: !!lastFlight,
-    hasVideoPath: !!lastFlight?.video_path,
-    hasExpectedFileName: !!expectedFileName,
-    hasVideoData: !!hasVideoData,
-    isAnalyzing,
-    buttonDisabled,
-    videoPathFromDB: lastFlight?.video_path,
-    expectedFileName
-  });
 
   return (
     <div className="p-6 border rounded-lg transition-all duration-200 border-border">
       <div className="flex items-center gap-3 mb-4">
         <History className="h-5 w-5 text-primary" />
         <h3 className="text-lg font-medium">Анализ последнего рейса</h3>
-      </div>
-      
-      {/* Debug information */}
-      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md text-xs">
-        <strong>Debug Info:</strong>
-        <div>Flight ID: {lastFlight?.flight_id || 'N/A'}</div>
-        <div>Video Path (API): {lastFlight?.video_path || 'N/A'}</div>
-        <div>Expected File: {expectedFileName || 'N/A'}</div>
-        <div>Has Video Data: {hasVideoData ? 'Yes' : 'No'}</div>
-        <div>Button Disabled: {buttonDisabled ? 'Yes' : 'No'}</div>
       </div>
       
       {lastFlight ? (
@@ -151,17 +106,8 @@ export const FlightAnalyzer: React.FC<FlightAnalyzerProps> = ({
                   <div className={`w-2 h-2 rounded-full ${
                     hasVideoData ? 'bg-green-500' : 'bg-red-500'
                   }`} />
-                  <span>
-                    {lastFlight.video_path 
-                      ? 'Путь из базы данных' 
-                      : 'Сгенерированное имя файла'}
-                  </span>
+                  <span>Готов к анализу</span>
                 </div>
-                {!lastFlight.video_path && (
-                  <div className="text-xs text-amber-600 dark:text-amber-400">
-                    ⚠️ Поле video_path отсутствует в API. Используется сгенерированное имя.
-                  </div>
-                )}
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">

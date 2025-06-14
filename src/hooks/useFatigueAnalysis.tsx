@@ -56,7 +56,6 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error('Request error:', error);
     return Promise.reject(error);
   }
 );
@@ -95,18 +94,15 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
           from_code: item.from_code,
           to_code: item.to_code
         }));
-        console.log('Loaded history data:', formattedHistory);
         setHistoryData(formattedHistory);
       }
     } catch (error) {
-      console.error('Failed to load history:', error);
       setHistoryData([]);
     }
   };
 
   const submitFeedback = async (analysisId: number, score: number) => {
     try {
-      // Use the correct fatigue feedback endpoint
       await apiClient.post('/fatigue/feedback', {
         analysis_id: analysisId,
         score: score
@@ -119,7 +115,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       
       return true;
     } catch (error) {
-      console.error('Failed to submit feedback:', error);
       toast({
         title: "Ошибка отправки отзыва",
         description: "Не удалось сохранить отзыв",
@@ -214,8 +209,6 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
   };
 
   const analyzeFlight = async (flight?: Flight | null) => {
-    console.log('[useFatigueAnalysis] analyzeFlight called with:', flight);
-    
     try {
       setAnalysisProgress({
         loading: true,
@@ -228,13 +221,9 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       
       if (!videoPath && flight?.flight_id && flight?.from_code && flight?.to_code) {
         videoPath = `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`;
-        console.log('[useFatigueAnalysis] Generated video path:', videoPath);
       }
       
-      console.log('[useFatigueAnalysis] Video path for analysis:', videoPath);
-      
       if (!videoPath) {
-        console.error('[useFatigueAnalysis] No video path available for flight');
         throw new Error('Video path not available for this flight');
       }
 
@@ -242,12 +231,8 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
         flight_id: flight?.flight_id,
         video_path: videoPath
       };
-      
-      console.log('[useFatigueAnalysis] Sending analyze-flight request:', requestData);
 
       const response = await apiClient.post('/fatigue/analyze-flight', requestData);
-
-      console.log('[useFatigueAnalysis] Analyze-flight response:', response.data);
 
       setAnalysisProgress({loading: false, message: '', percent: 100});
 
@@ -258,19 +243,16 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
       }
       
     } catch (error: any) {
-      console.error('[useFatigueAnalysis] Flight analysis error:', error);
       setAnalysisProgress({loading: false, message: '', percent: 0});
       
       if (error.response?.status === 404) {
         const expectedFile = flight?.video_path || `flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
-        console.error('[useFatigueAnalysis] Video file not found:', expectedFile);
         toast({
           title: "Видео не найдено",
           description: `Видео рейса не найдено. Убедитесь, что файл ${expectedFile} существует в папке neural_network/data/video/`,
           variant: "destructive"
         });
       } else {
-        console.error('[useFatigueAnalysis] Other error:', error.response?.data || error.message);
         toast({
           title: "Ошибка анализа рейса",
           description: error.message || "Неизвестная ошибка",
