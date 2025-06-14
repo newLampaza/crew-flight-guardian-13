@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,22 +21,12 @@ interface FlightAnalysesChartProps {
 export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ historyData }) => {
   const [chartType, setChartType] = useState<'bar' | 'pie'>('bar');
 
-  // Фильтруем только анализы рейсов за текущий день
-  const getTodayFlightAnalyses = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    return historyData.filter(item => {
-      const itemDate = new Date(item.analysis_date);
-      return item.flight_id && // Только анализы рейсов
-             itemDate >= today && 
-             itemDate < tomorrow;
-    });
+  // Показываем все анализы рейсов (с flight_id)
+  const getFlightAnalyses = () => {
+    return historyData.filter(item => item.flight_id);
   };
 
-  const flightAnalyses = getTodayFlightAnalyses();
+  const flightAnalyses = getFlightAnalyses();
 
   // Подготовка данных для гистограммы по рейсам
   const prepareBarChartData = () => {
@@ -45,7 +36,9 @@ export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ histor
         : `Рейс ${item.flight_id}`,
       fatigue_score: Math.round((item.neural_network_score || 0) * 100),
       flight_id: item.flight_id,
-      time: new Date(item.analysis_date).toLocaleTimeString('ru-RU', { 
+      time: new Date(item.analysis_date).toLocaleDateString('ru-RU', { 
+        day: 'numeric',
+        month: 'short',
         hour: '2-digit', 
         minute: '2-digit' 
       }),
@@ -100,7 +93,7 @@ export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ histor
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Plane className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg">Анализы рейсов за сегодня</CardTitle>
+            <CardTitle className="text-lg">Анализы рейсов</CardTitle>
           </div>
           
           <Button
@@ -159,7 +152,7 @@ export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ histor
                           <div className="rounded-lg border bg-background p-3 shadow-lg">
                             <div className="font-medium">{label}</div>
                             <div className="text-sm text-muted-foreground">
-                              Время: {data.time}
+                              Дата: {data.time}
                             </div>
                             <div className="text-sm">
                               Усталость: {data.fatigue_score}%
@@ -222,7 +215,7 @@ export const FlightAnalysesChart: React.FC<FlightAnalysesChartProps> = ({ histor
           <div className="flex items-center justify-center h-[300px] text-muted-foreground">
             <div className="text-center">
               <Plane className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Нет анализов рейсов за сегодня</p>
+              <p>Нет анализов рейсов</p>
               <p className="text-sm mt-2">Анализы рейсов появятся здесь после их выполнения</p>
             </div>
           </div>
