@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
@@ -192,7 +191,19 @@ const Dashboard = () => {
                   <p className="text-lg mb-1">{currentFlight.route}</p>
                   
                   {currentFlight.isActive ? (
-                    <p className="text-base text-muted-foreground">{currentFlight.duration} мин</p>
+                    <div className="space-y-1">
+                      <p className="text-base text-muted-foreground">
+                        Отправление: {formatFlightTime(currentFlight.departure_time)}
+                      </p>
+                      {currentFlight.arrival_time && (
+                        <p className="text-base text-muted-foreground">
+                          Прибытие: {formatFlightTime(currentFlight.arrival_time)}
+                        </p>
+                      )}
+                      <p className="text-base text-muted-foreground">
+                        Продолжительность: {currentFlight.duration} мин
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-1">
                       <p className="text-base text-muted-foreground">

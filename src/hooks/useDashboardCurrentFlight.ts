@@ -28,22 +28,15 @@ export const useDashboardCurrentFlight = () => {
       console.log('[DashboardCurrentFlight] Making API request to /api/dashboard/current-flight');
       
       try {
-        // Сначала пытаемся получить активный рейс
         const { data } = await api.get("/api/dashboard/current-flight");
         console.log('[DashboardCurrentFlight] API response:', data);
         
-        // Если есть активный рейс, возвращаем его
+        // Проверяем, есть ли рейс и правильно используем isActive из ответа
         if (data && data.flight_number) {
-          return { ...data, isActive: true };
-        }
-        
-        // Если активного рейса нет, получаем следующий запланированный
-        console.log('[DashboardCurrentFlight] No active flight, getting next scheduled flight');
-        const nextFlightResponse = await api.get("/api/dashboard/next-flight");
-        console.log('[DashboardCurrentFlight] Next flight response:', nextFlightResponse.data);
-        
-        if (nextFlightResponse.data && nextFlightResponse.data.flight_number) {
-          return { ...nextFlightResponse.data, isActive: false };
+          return {
+            ...data,
+            isActive: data.isActive || false  // Используем значение из API
+          };
         }
         
         return null;
