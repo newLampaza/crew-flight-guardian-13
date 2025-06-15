@@ -1,11 +1,20 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+// Главная страница разбита на отдельные блоки для удобства интеграции с БД и API
+
+import React from "react";
+import UserGreeting from "@/components/index/UserGreeting";
+import FlightStatsCard from "@/components/index/FlightStatsCard";
+import CrewCard from "@/components/index/CrewCard";
+import FatigueAnalysisCard from "@/components/index/FatigueAnalysisCard";
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="space-y-8 max-w-7xl mx-auto animate-fade-in">
+      <UserGreeting />
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+        <FlightStatsCard />
+        <CrewCard />
+        <FatigueAnalysisCard />
       </div>
     </div>
   );
