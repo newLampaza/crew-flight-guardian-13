@@ -327,8 +327,11 @@ const FatigueAnalysisPage = () => {
 
       {/* Charts & Status Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <FatigueTrendChart data={monthlyFatigueData} />
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          {/* Старую диаграмму FatigueTrendChart убираем */}
+          {/* Вместо неё — вертикально: сначала "Все анализы за день", затем "Анализы рейсов за сегодня" */}
+          <DayAnalysesAreaChart historyData={historyData} />
+          <FlightAnalysesChart historyData={historyData} />
         </div>
 
         {/* Status and History */}
