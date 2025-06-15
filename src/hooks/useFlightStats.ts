@@ -20,7 +20,7 @@ export function useFlightStats() {
   } = useQuery<FlightStats>({
     queryKey: ["flight-stats"],
     queryFn: async () => {
-      const response = await axios.get("/api/flight-stats");
+      const response = await axios.get("/api/crew/flight-stats");
       return response.data;
     },
     enabled: isAuthenticated && !loading,
