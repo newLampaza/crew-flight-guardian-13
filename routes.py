@@ -44,12 +44,12 @@ def get_current_flight():
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # First, try to get an active flight (status = 'В полете' or similar)
+        # First, try to get an active flight (status = 'in_progress')
         cursor.execute("""
-            SELECT flight_number, departure_airport, arrival_airport, 
+            SELECT flight_number, from_code, from_city, to_code, to_city, 
                    departure_time, arrival_time, status, duration
             FROM Flights 
-            WHERE status IN ('В полете', 'Активный', 'Active') 
+            WHERE status = 'in_progress'
             ORDER BY departure_time ASC 
             LIMIT 1
         """)
@@ -60,7 +60,7 @@ def get_current_flight():
             conn.close()
             return jsonify({
                 'flight_number': active_flight['flight_number'],
-                'route': f"{active_flight['departure_airport']} → {active_flight['arrival_airport']}",
+                'route': f"{active_flight['from_city']} ({active_flight['from_code']}) → {active_flight['to_city']} ({active_flight['to_code']})",
                 'departure_time': active_flight['departure_time'],
                 'arrival_time': active_flight['arrival_time'],
                 'duration': active_flight['duration'],
@@ -70,11 +70,11 @@ def get_current_flight():
         
         # If no active flight, get next scheduled flight
         cursor.execute("""
-            SELECT flight_number, departure_airport, arrival_airport, 
+            SELECT flight_number, from_code, from_city, to_code, to_city, 
                    departure_time, arrival_time, status, duration
             FROM Flights 
             WHERE datetime(departure_time) >= datetime('now') 
-            AND status IN ('Планируется', 'Scheduled', 'Запланирован')
+            AND status = 'scheduled'
             ORDER BY departure_time ASC 
             LIMIT 1
         """)
@@ -85,7 +85,7 @@ def get_current_flight():
         if next_flight:
             return jsonify({
                 'flight_number': next_flight['flight_number'],
-                'route': f"{next_flight['departure_airport']} → {next_flight['arrival_airport']}",
+                'route': f"{next_flight['from_city']} ({next_flight['from_code']}) → {next_flight['to_city']} ({next_flight['to_code']})",
                 'departure_time': next_flight['departure_time'],
                 'arrival_time': next_flight['arrival_time'],
                 'duration': next_flight['duration'],
@@ -107,11 +107,11 @@ def get_next_flight():
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT flight_number, departure_airport, arrival_airport, 
+            SELECT flight_number, from_code, from_city, to_code, to_city, 
                    departure_time, arrival_time, status, duration
             FROM Flights 
             WHERE datetime(departure_time) >= datetime('now') 
-            AND status IN ('Планируется', 'Scheduled', 'Запланирован')
+            AND status = 'scheduled'
             ORDER BY departure_time ASC 
             LIMIT 1
         """)
@@ -122,7 +122,7 @@ def get_next_flight():
         if next_flight:
             return jsonify({
                 'flight_number': next_flight['flight_number'],
-                'route': f"{next_flight['departure_airport']} → {next_flight['arrival_airport']}",
+                'route': f"{next_flight['from_city']} ({next_flight['from_code']}) → {next_flight['to_city']} ({next_flight['to_code']})",
                 'departure_time': next_flight['departure_time'],
                 'arrival_time': next_flight['arrival_time'],
                 'duration': next_flight['duration'],
@@ -143,12 +143,12 @@ def get_dashboard_crew():
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT e.name, e.position, e.role 
+            SELECT e.name, e.position, cm.role 
             FROM Employees e 
-            JOIN CrewMembers cm ON e.id = cm.employee_id 
+            JOIN CrewMembers cm ON e.employee_id = cm.employee_id 
             WHERE cm.crew_id = (
-                SELECT id FROM Crews 
-                ORDER BY created_at DESC 
+                SELECT crew_id FROM Crews 
+                ORDER BY crew_id DESC 
                 LIMIT 1
             )
         """)
