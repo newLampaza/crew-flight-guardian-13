@@ -2,8 +2,9 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 
-// Create axios instance with auth interceptor like in AuthContext
+// Create axios instance with same config as AuthContext
 const api = axios.create({
+  baseURL: 'http://localhost:5000',
   headers: {
     'Content-Type': 'application/json'
   }
@@ -24,7 +25,9 @@ export const useDashboardFlightStats = () => {
   return useQuery({
     queryKey: ["dashboard-flight-stats"],
     queryFn: async () => {
+      console.log('[DashboardFlightStats] Making API request to /api/dashboard/flight-stats');
       const { data } = await api.get("/api/dashboard/flight-stats");
+      console.log('[DashboardFlightStats] API response:', data);
       return data;
     }
   });
