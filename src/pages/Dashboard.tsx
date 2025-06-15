@@ -17,7 +17,8 @@ import {
   AlertTriangle,
   Activity,
   ChevronRight,
-  Calendar
+  Calendar,
+  CheckCircle2
 } from "lucide-react";
 import { useDashboardFlightStats } from "@/hooks/useDashboardFlightStats";
 import { useDashboardCrew } from "@/hooks/useDashboardCrew";
@@ -74,33 +75,24 @@ const Dashboard = () => {
   const getFatigueStatus = (level) => {
     if (level >= 70) {
       return {
-        label: 'Критический уровень',
+        status: 'Критический уровень',
         color: 'text-rose-500',
-        bgColor: 'bg-rose-50 dark:bg-rose-500/10',
-        borderColor: 'border-rose-200 dark:border-rose-800',
-        badge: 'bg-rose-500',
-        message: 'Требует немедленного внимания',
-        icon: AlertTriangle
+        icon: AlertTriangle,
+        message: 'Требует немедленного внимания'
       };
     } else if (level >= 50) {
       return {
-        label: 'Повышенный уровень усталости',
+        status: 'Требует внимания',
         color: 'text-amber-500',
-        bgColor: 'bg-amber-50 dark:bg-amber-500/10',
-        borderColor: 'border-amber-200 dark:border-amber-800',
-        badge: 'bg-amber-500',
-        message: 'Рекомендуется дополнительный отдых',
-        icon: AlertTriangle
+        icon: AlertTriangle,
+        message: 'Повышенный уровень усталости'
       };
     } else {
       return {
-        label: 'Нормальный уровень',
+        status: 'Нормальный уровень',
         color: 'text-emerald-500',
-        bgColor: 'bg-emerald-50 dark:bg-emerald-500/10',
-        borderColor: 'border-emerald-200 dark:border-emerald-800',
-        badge: 'bg-emerald-500',
-        message: 'В пределах нормы',
-        icon: Battery
+        icon: CheckCircle2,
+        message: 'В пределах нормы'
       };
     }
   };
@@ -430,7 +422,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         
-        {/* Fatigue Analysis with Real Data */}
+        {/* Fatigue Analysis with Data from FatigueStatusCard */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-2xl flex items-center gap-3">
@@ -445,16 +437,20 @@ const Dashboard = () => {
                   {currentFatigueLevel > 0 ? `${currentFatigueLevel}%` : '—'}
                 </div>
                 <div className="text-base text-muted-foreground">
-                  {currentFatigueLevel > 0 ? fatigueStatus.label : 'Нет данных'}
+                  {currentFatigueLevel > 0 ? fatigueStatus.status : 'Нет данных'}
                 </div>
               </div>
               
               {currentFatigueLevel >= 50 && (
-                <div className={`${fatigueStatus.bgColor} p-4 rounded-lg border ${fatigueStatus.borderColor}`}>
+                <div className={`p-4 rounded-lg border ${
+                  currentFatigueLevel >= 70 
+                    ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-800' 
+                    : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-800'
+                }`}>
                   <div className="flex items-start gap-3">
                     <StatusIcon className={`h-6 w-6 ${fatigueStatus.color} mt-0.5`} />
                     <div>
-                      <p className="text-base font-medium">{fatigueStatus.label}</p>
+                      <p className="text-base font-medium">{fatigueStatus.status}</p>
                       <p className="text-sm text-muted-foreground">{fatigueStatus.message}</p>
                     </div>
                   </div>
