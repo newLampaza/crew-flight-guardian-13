@@ -1,8 +1,8 @@
-
 from flask import Blueprint, jsonify, request
 import sqlite3
 import logging
 import traceback
+from datetime import datetime, timedelta
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -255,3 +255,106 @@ def get_profile():
             conn.close()
             
     return _get_profile()
+
+@user_bp.route('/dashboard/flight-stats', methods=['GET'])
+def dashboard_flight_stats():
+    token_required = get_token_required()
+    @token_required
+    def _flight_stats(current_user):
+        conn = get_db_connection()
+        employee_id = current_user["employee_id"]
+        now = datetime.now()
+        start_of_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Weekly stats: completed flights only!
+        week_stat = conn.execute("""
+            SELECT COUNT(*) as flights, 
+                   IFNULL(SUM(duration),0) as hours
+            FROM Flights f
+            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+            WHERE cm.employee_id = ?
+              AND f.arrival_time < CURRENT_TIMESTAMP
+              AND f.departure_time >= ?
+        """, (employee_id, start_of_week.isoformat(" "))).fetchone()
+        # Monthly stats: completed flights only!
+        month_stat = conn.execute("""
+            SELECT COUNT(*) as flights,
+                   IFNULL(SUM(duration),0) as hours
+            FROM Flights f
+            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+            WHERE cm.employee_id = ?
+              AND f.arrival_time < CURRENT_TIMESTAMP
+              AND f.departure_time >= ?
+        """, (employee_id, start_of_month.isoformat(" "))).fetchone()
+        conn.close()
+        return jsonify({
+            "weeklyFlights": week_stat["flights"],
+            "weeklyHours": round(week_stat["hours"]/60, 1) if week_stat["hours"] else 0,
+            "monthlyFlights": month_stat["flights"],
+            "monthlyHours": round(month_stat["hours"]/60, 1) if month_stat["hours"] else 0
+        })
+    return _flight_stats()
+
+@user_bp.route('/dashboard/crew', methods=['GET'])
+def dashboard_crew():
+    token_required = get_token_required()
+    @token_required
+    def _crew(current_user):
+        conn = get_db_connection()
+        employee_id = current_user["employee_id"]
+        row = conn.execute("""
+            SELECT crew_id FROM CrewMembers WHERE employee_id = ?
+        """, (employee_id,)).fetchone()
+        if not row:
+            conn.close()
+            return jsonify([])
+        crew_id = row["crew_id"]
+        members = conn.execute("""
+            SELECT e.employee_id as id, e.name, cm.role, e.position 
+            FROM Employees e 
+            JOIN CrewMembers cm ON e.employee_id = cm.employee_id
+            WHERE cm.crew_id = ?
+        """, (crew_id,)).fetchall()
+        conn.close()
+        return jsonify([{
+            "id": m["id"],
+            "name": m["name"],
+            "position": m["position"],
+            "role": m["role"]
+        } for m in members])
+    return _crew()
+
+@user_bp.route('/dashboard/current-flight', methods=['GET'])
+def dashboard_current_flight():
+    token_required = get_token_required()
+    @token_required
+    def _current_flight(current_user):
+        conn = get_db_connection()
+        employee_id = current_user["employee_id"]
+        flight = conn.execute("""
+            SELECT f.flight_id, f.flight_number, f.departure_time, f.arrival_time, f.duration,
+                   f.from_code, f.from_city, f.to_code, f.to_city, f.aircraft, f.status
+            FROM Flights f
+            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+            WHERE cm.employee_id = ?
+            AND f.status = 'in_progress'
+            ORDER BY f.departure_time DESC
+            LIMIT 1
+        """, (employee_id,)).fetchone()
+        conn.close()
+        if not flight:
+            return jsonify({}), 404
+        # Duration minutes to hours/minutes
+        dur = flight["duration"] or 0
+        duration_str = f"{dur//60} ч {dur%60} мин" if dur else ""
+        return jsonify({
+            "flight_id": flight["flight_id"],
+            "flight_number": flight["flight_number"],
+            "route": f'{flight["from_city"]} ({flight["from_code"]}) - {flight["to_city"]} ({flight["to_code"]})',
+            "departure_time": flight["departure_time"],
+            "arrival_time": flight["arrival_time"],
+            "duration": duration_str,
+            "aircraft": flight["aircraft"],
+            "status": flight["status"]
+        })
+    return _current_flight()

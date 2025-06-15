@@ -18,25 +18,17 @@ import {
   Activity,
   ChevronRight
 } from "lucide-react";
+import { useDashboardFlightStats } from "@/hooks/useDashboardFlightStats";
+import { useDashboardCrew } from "@/hooks/useDashboardCrew";
+import { useDashboardCurrentFlight } from "@/hooks/useDashboardCurrentFlight";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
   
-  // Mock data for flight stats
-  const flightStats = {
-    weeklyFlights: 4,
-    weeklyHours: 18,
-    monthlyFlights: 16,
-    monthlyHours: 72
-  };
-  
-  // Mock crew data
-  const crewData = [
-    { id: 1, name: "Иванов И.И.", position: "Капитан" },
-    { id: 2, name: "Петрова А.С.", position: "Второй пилот" },
-    { id: 3, name: "Сидоров М.В.", position: "Бортпроводник" },
-    { id: 4, name: "Кузнецов Д.А.", position: "Бортпроводник" }
-  ];
+  // Получаем реальные данные с бэка
+  const { data: flightStats, isLoading: isStatsLoading } = useDashboardFlightStats();
+  const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
+  const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -94,24 +86,28 @@ const Dashboard = () => {
             <CardDescription className="text-base">Текущая неделя и месяц</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-5">
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Количество полетов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
+            {isStatsLoading ? (
+              <div className="text-center text-muted-foreground">Загрузка...</div>
+            ) : (
+              <div className="space-y-5">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Количество полетов за неделю</span>
+                  <span className="text-xl font-bold">{flightStats?.weeklyFlights ?? "—"}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Налет часов за неделю</span>
+                  <span className="text-xl font-bold">{flightStats?.weeklyHours ?? "—"} ч</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Количество полетов за месяц</span>
+                  <span className="text-xl font-bold">{flightStats?.monthlyFlights ?? "—"}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Налет часов за месяц</span>
+                  <span className="text-xl font-bold">{flightStats?.monthlyHours ?? "—"} ч</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Налет часов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Количество полетов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Налет часов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
         
@@ -122,22 +118,29 @@ const Dashboard = () => {
               <Users className="h-6 w-6 text-primary" />
               Текущий экипаж
             </CardTitle>
-            <CardDescription className="text-base">Рейс SU-1492, Москва - Санкт-Петербург</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {crewData.map(member => (
-                <div 
-                  key={member.id} 
-                  className="flex justify-between items-center gap-4"
-                >
-                  <div className="flex-grow truncate">
-                    <span className="block text-base font-medium truncate">{member.name}</span>
-                    <span className="block text-sm text-muted-foreground truncate">{member.position}</span>
+            {isCrewLoading ? (
+              <div className="text-center text-muted-foreground">Загрузка...</div>
+            ) : (
+              <div className="space-y-4">
+                {(crewData ?? []).map((member: any) => (
+                  <div 
+                    key={member.id} 
+                    className="flex justify-between items-center gap-4"
+                  >
+                    <div className="flex-grow truncate">
+                      <span className="block text-base font-medium truncate">{member.name}</span>
+                      <span className="block text-sm text-muted-foreground truncate">{member.position}</span>
+                    </div>
+                    <Badge className="ml-4">{member.role}</Badge>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+                {crewData?.length === 0 && (
+                  <div className="text-muted-foreground text-center text-base">Нет данных по экипажу</div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
         
@@ -151,13 +154,19 @@ const Dashboard = () => {
             <CardDescription className="text-base">Информация о рейсе</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div className="text-center p-6 bg-secondary rounded-lg">
-                <p className="font-bold text-2xl mb-2">SU-1492</p>
-                <p className="text-lg mb-1">Москва (SVO) - Санкт-Петербург (LED)</p>
-                <p className="text-base text-muted-foreground">2 часа 20 минут</p>
+            {isFlightLoading ? (
+              <div className="text-center text-muted-foreground">Загрузка...</div>
+            ) : currentFlight?.flight_number ? (
+              <div className="space-y-4">
+                <div className="text-center p-6 bg-secondary rounded-lg">
+                  <p className="font-bold text-2xl mb-2">{currentFlight.flight_number}</p>
+                  <p className="text-lg mb-1">{currentFlight.route}</p>
+                  <p className="text-base text-muted-foreground">{currentFlight.duration}</p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-muted-foreground text-center text-base">Нет активного рейса</div>
+            )}
           </CardContent>
         </Card>
       </div>
