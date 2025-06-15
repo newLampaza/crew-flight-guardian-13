@@ -1,4 +1,5 @@
 
+
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
@@ -10,10 +11,10 @@ export interface CrewMember {
 }
 
 export function useCrew() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   
   return useQuery<CrewMember[]>({
-    queryKey: ["crewData"],
+    queryKey: ["crewData", user?.id],
     queryFn: async () => {
       console.log('Fetching crew data...');
       const { data } = await axios.get("/api/crew");
@@ -27,8 +28,9 @@ export function useCrew() {
       
       return data;
     },
-    enabled: !!user, // Запрос выполняется только если пользователь аутентифицирован
+    enabled: isAuthenticated && !!user, // Запрос выполняется только если пользователь аутентифицирован
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
 }
+
