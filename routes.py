@@ -137,20 +137,18 @@ def get_next_flight():
 
 @app.route('/api/dashboard/crew', methods=['GET'])
 def get_dashboard_crew():
-    """Get current crew members"""
+    """Get current crew members for active crew (crew_id = 1)"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # Получаем экипаж с crew_id = 1 (активный экипаж)
         cursor.execute("""
             SELECT e.name, e.position, cm.role 
             FROM Employees e 
             JOIN CrewMembers cm ON e.employee_id = cm.employee_id 
-            WHERE cm.crew_id = (
-                SELECT crew_id FROM Crews 
-                ORDER BY crew_id DESC 
-                LIMIT 1
-            )
+            WHERE cm.crew_id = 1
+            ORDER BY cm.role DESC
         """)
         
         crew_members = cursor.fetchall()
