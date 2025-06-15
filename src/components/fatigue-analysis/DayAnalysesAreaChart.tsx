@@ -27,95 +27,129 @@ interface DayAnalysesAreaChartProps {
   historyData: HistoryItem[];
 }
 
-function formatDate(date: Date, mode: string) {
-  // mode: day, week, month
-  if (mode === "day") return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
-  if (mode === "week") {
-    // get ISO week number and year
-    const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-    const pastDaysOfYear = Math.floor(
-      (date.getTime() - firstDayOfYear.getTime()) / 86400000
-    );
-    const week = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-    return `${week} нед ${date.getFullYear()}`;
-  }
-  // month
-  return date.toLocaleDateString("ru-RU", { month: "short", year: "2-digit" });
+const weekDaysRu = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+function getWeekdayName(date: Date) {
+  // JS Sunday: 0, Monday: 1...
+  return weekDaysRu[date.getDay()];
+}
+function padZero(n: number) {
+  return n < 10 ? `0${n}` : `${n}`;
 }
 
-function groupData(historyData: HistoryItem[], mode: string) {
-  // Группируем по дате(день/неделя/месяц)
-  const map = new Map<string, { realtime: number[]; flight: number[] }>();
+function groupData(historyData: HistoryItem[], mode: "day" | "week" | "month") {
+  if (!historyData || historyData.length === 0) return [];
 
-  historyData.forEach(item => {
-    const date = new Date(item.analysis_date);
-    const key = mode === "day"
-      ? date.toISOString().slice(0, 10)
-      : mode === "week"
-        ? (() => {
-            // get ISO week number with year
-            const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-            const dayNum = d.getUTCDay() || 7;
-            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-            const weekNum = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-            return `${d.getUTCFullYear()}-W${weekNum}`;
-          })()
-        : `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2, "0")}`;
+  // Выделяем "реальное время" и "рейсы"
+  const map = new Map<
+    string,
+    { realtime: number[]; flight: number[]; date: Date }
+  >();
 
-    if (!map.has(key)) {
-      map.set(key, { realtime: [], flight: [] });
+  // Находим наиболее свежую дату в данных для выбора дня/недели/месяца
+  const dates = historyData.map(h => new Date(h.analysis_date));
+  const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+
+  if (mode === "day") {
+    // Все за последний день
+    const dayStr = maxDate.toISOString().slice(0, 10);
+    historyData.forEach((item) => {
+      const date = new Date(item.analysis_date);
+      const curDayStr = date.toISOString().slice(0, 10);
+      if (curDayStr === dayStr) {
+        const timeKey = `${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
+        if (!map.has(timeKey)) {
+          map.set(timeKey, { realtime: [], flight: [], date });
+        }
+        map.get(timeKey)![item.analysis_type].push(item.neural_network_score);
+      }
+    });
+  } else if (mode === "week") {
+    // Неделя — по дням с Пн по Вс, только неделя maxDate
+    const monday = new Date(maxDate);
+    monday.setDate(maxDate.getDate() - ((maxDate.getDay() + 6) % 7)); // Monday
+    monday.setHours(0,0,0,0);
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      // Группировка по yyyy-mm-dd (один столбец на каждый день недели)
+      const dayKey = d.toISOString().slice(0, 10);
+      if (!map.has(dayKey)) {
+        map.set(dayKey, { realtime: [], flight: [], date: d });
+      }
     }
-    map.get(key)![item.analysis_type].push(item.neural_network_score);
-  });
 
-  // Формируем итоговые данные: среднее по каждой группе
+    historyData.forEach(item => {
+      const date = new Date(item.analysis_date);
+      // Если день попадает в эту неделю
+      const dayKey = date.toISOString().slice(0, 10);
+      if (map.has(dayKey)) {
+        map.get(dayKey)![item.analysis_type].push(item.neural_network_score);
+      }
+    });
+  } else if (mode === "month") {
+    // Месяц — по дням месяца, только месяц maxDate
+    const year = maxDate.getFullYear();
+    const month = maxDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateObj = new Date(year, month, d);
+      const dayKey = dateObj.toISOString().slice(0, 10);
+      if (!map.has(dayKey)) {
+        map.set(dayKey, { realtime: [], flight: [], date: dateObj });
+      }
+    }
+    historyData.forEach(item => {
+      const date = new Date(item.analysis_date);
+      if (date.getFullYear() === year && date.getMonth() === month) {
+        const dayKey = date.toISOString().slice(0, 10);
+        map.get(dayKey)![item.analysis_type].push(item.neural_network_score);
+      }
+    });
+  }
+
+  // Формируем массив данных для графика в нужном виде для mode
   let out: any[] = [];
   Array.from(map.entries()).forEach(([key, value]) => {
-    // График требует ось X в человекочитаемом виде
-    let dateObj: Date;
+    let xLabel = "";
     if (mode === "day") {
-      dateObj = new Date(key);
+      xLabel = key; // HH:mm
     } else if (mode === "week") {
-      const [year, weekRaw] = key.split("-W");
-      // Find first day of ISO week
-      const w = parseInt(weekRaw, 10);
-      const d = new Date(Date.UTC(Number(year), 0, 1 + (w - 1) * 7));
-      // Move to Monday
-      if (d.getUTCDay() <= 4) d.setUTCDate(d.getUTCDate() - d.getUTCDay() + 1);
-      else d.setUTCDate(d.getUTCDate() + 8 - d.getUTCDay());
-      dateObj = d;
-    } else {
-      // month
-      const [year, month] = key.split("-");
-      dateObj = new Date(Number(year), Number(month)-1, 1);
+      xLabel = getWeekdayName(value.date); // Пн, Вт...
+    } else if (mode === "month") {
+      xLabel = String(value.date.getDate()); // 1, 2, ... 31
     }
-
     out.push({
-      period: formatDate(dateObj, mode),
+      x: xLabel,
       "Реальное время": value.realtime.length
         ? Math.round(100 * value.realtime.reduce((a, b) => a + b, 0) / value.realtime.length)
         : 0,
       "Рейс": value.flight.length
         ? Math.round(100 * value.flight.reduce((a, b) => a + b, 0) / value.flight.length)
-        : 0,
+        : 0
     });
   });
 
-  // Отсортируем по дате (asc)
-  return out.sort((a, b) => {
-    if (mode === "month") {
-      const [m1, y1] = a.period.split(" ");
-      const [m2, y2] = b.period.split(" ");
-      return a.period.localeCompare(b.period);
-    }
-    return a.period.localeCompare(b.period);
-  });
+  // Сортируем по x оси, чтобы AreaChart не строил рваную линию
+  if (mode === "day") {
+    out.sort((a, b) => a.x.localeCompare(b.x));
+  } else if (mode === "week") {
+    // По дням недели: Пн=1 ... Вс=0
+    out.sort((a, b) => {
+      const dayOrder = { "Пн": 1, "Вт": 2, "Ср": 3, "Чт": 4, "Пт": 5, "Сб": 6, "Вс": 0 };
+      return (dayOrder[a.x] ?? 10) - (dayOrder[b.x] ?? 10);
+    });
+  } else if (mode === "month") {
+    out.sort((a, b) => Number(a.x) - Number(b.x));
+  }
+
+  return out;
 }
 
 export const DayAnalysesAreaChart: React.FC<DayAnalysesAreaChartProps> = ({ historyData }) => {
   const [mode, setMode] = useState<"day" | "week" | "month">("day");
-
   const chartData = groupData(historyData, mode);
 
   return (
@@ -154,11 +188,21 @@ export const DayAnalysesAreaChart: React.FC<DayAnalysesAreaChartProps> = ({ hist
               </defs>
               <CartesianGrid strokeDasharray="3 3" opacity={0.07} />
               <XAxis 
-                dataKey="period"
+                dataKey="x"
                 stroke="#888888"
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
+                label={{
+                  value:
+                    mode === "day"
+                      ? "Время"
+                      : mode === "week"
+                      ? "День недели"
+                      : "День месяца",
+                  position: "insideBottomRight",
+                  offset: -8
+                }}
               />
               <YAxis
                 stroke="#888888"
@@ -176,6 +220,12 @@ export const DayAnalysesAreaChart: React.FC<DayAnalysesAreaChartProps> = ({ hist
                   boxShadow: '0 2px 8px 0 rgba(0,0,0,.06)'
                 }}
                 formatter={(val: number) => `${val}%`}
+                labelFormatter={(label: string) => {
+                  if (mode === "day") return `Время: ${label}`;
+                  if (mode === "week") return `День недели: ${label}`;
+                  if (mode === "month") return `День месяца: ${label}`;
+                  return label;
+                }}
               />
               <Area
                 type="monotone"
