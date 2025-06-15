@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
@@ -181,40 +182,46 @@ const Dashboard = () => {
               <div className="text-center text-muted-foreground">Загрузка...</div>
             ) : currentFlight?.flight_number ? (
               <div className="space-y-4">
-                <div className="text-center p-6 bg-secondary rounded-lg">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <p className="font-bold text-2xl">{currentFlight.flight_number}</p>
-                    <Badge variant={currentFlight.isActive ? "default" : "secondary"}>
-                      {currentFlight.isActive ? 'Активный' : 'Запланирован'}
-                    </Badge>
+                <div className="text-center p-6 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center justify-center gap-3 mb-3">
+                    <p className="font-bold text-2xl text-blue-900 dark:text-blue-100">{currentFlight.flight_number}</p>
+                    {currentFlight.isActive ? (
+                      <Badge className="bg-green-500 hover:bg-green-600 text-white border-0 shadow-md">
+                        Активный
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-0 shadow-md px-3 py-1">
+                        Запланирован
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-lg mb-1">{currentFlight.route}</p>
+                  <p className="text-lg mb-3 text-blue-800 dark:text-blue-200 font-medium">{currentFlight.route}</p>
                   
                   {currentFlight.isActive ? (
-                    <div className="space-y-1">
-                      <p className="text-base text-muted-foreground">
+                    <div className="space-y-2">
+                      <p className="text-base text-blue-700 dark:text-blue-300">
                         Отправление: {formatFlightTime(currentFlight.departure_time)}
                       </p>
                       {currentFlight.arrival_time && (
-                        <p className="text-base text-muted-foreground">
+                        <p className="text-base text-blue-700 dark:text-blue-300">
                           Прибытие: {formatFlightTime(currentFlight.arrival_time)}
                         </p>
                       )}
-                      <p className="text-base text-muted-foreground">
+                      <p className="text-base text-blue-700 dark:text-blue-300">
                         Продолжительность: {currentFlight.duration} мин
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-1">
-                      <p className="text-base text-muted-foreground">
+                    <div className="space-y-2">
+                      <p className="text-base text-blue-700 dark:text-blue-300">
                         Отправление: {formatFlightTime(currentFlight.departure_time)}
                       </p>
                       {currentFlight.arrival_time && (
-                        <p className="text-base text-muted-foreground">
+                        <p className="text-base text-blue-700 dark:text-blue-300">
                           Прибытие: {formatFlightTime(currentFlight.arrival_time)}
                         </p>
                       )}
-                      <p className="text-base text-muted-foreground">
+                      <p className="text-base text-blue-700 dark:text-blue-300">
                         Продолжительность: {currentFlight.duration} мин
                       </p>
                     </div>
