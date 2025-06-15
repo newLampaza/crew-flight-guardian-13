@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
 import MedicalHome from './MedicalHome';
@@ -19,24 +19,12 @@ import {
   ChevronRight
 } from "lucide-react";
 
+// Новый hook для данных Dashboard
+import { useDashboardData } from "@/hooks/useDashboardData";
+
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
-  
-  // Mock data for flight stats
-  const flightStats = {
-    weeklyFlights: 4,
-    weeklyHours: 18,
-    monthlyFlights: 16,
-    monthlyHours: 72
-  };
-  
-  // Mock crew data
-  const crewData = [
-    { id: 1, name: "Иванов И.И.", position: "Капитан" },
-    { id: 2, name: "Петрова А.С.", position: "Второй пилот" },
-    { id: 3, name: "Сидоров М.В.", position: "Бортпроводник" },
-    { id: 4, name: "Кузнецов Д.А.", position: "Бортпроводник" }
-  ];
+  const { data, isLoading, error } = useDashboardData();
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -45,6 +33,24 @@ const Dashboard = () => {
   if (isMedical()) {
     return <MedicalHome />;
   }
+
+  // Лоадер и ошибка
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <span className="text-lg">Загрузка данных...</span>
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <span className="text-red-500">Ошибка загрузки главной страницы</span>
+      </div>
+    );
+  }
+
+  const { stats, crew, flightStatus } = data;
 
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
@@ -97,19 +103,19 @@ const Dashboard = () => {
             <div className="space-y-5">
               <div className="flex justify-between items-center">
                 <span className="text-base font-medium">Количество полетов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
+                <span className="text-xl font-bold">{stats.weeklyFlights}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-base font-medium">Налет часов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
+                <span className="text-xl font-bold">{stats.weeklyHours} ч</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-base font-medium">Количество полетов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
+                <span className="text-xl font-bold">{stats.monthlyFlights}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-base font-medium">Налет часов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
+                <span className="text-xl font-bold">{stats.monthlyHours} ч</span>
               </div>
             </div>
           </CardContent>
@@ -122,11 +128,11 @@ const Dashboard = () => {
               <Users className="h-6 w-6 text-primary" />
               Текущий экипаж
             </CardTitle>
-            <CardDescription className="text-base">Рейс SU-1492, Москва - Санкт-Петербург</CardDescription>
+            <CardDescription className="text-base">Рейс {flightStatus.code}, {flightStatus.from} - {flightStatus.to}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {crewData.map(member => (
+              {crew.map(member => (
                 <div 
                   key={member.id} 
                   className="flex justify-between items-center gap-4"
@@ -153,9 +159,9 @@ const Dashboard = () => {
           <CardContent>
             <div className="space-y-4">
               <div className="text-center p-6 bg-secondary rounded-lg">
-                <p className="font-bold text-2xl mb-2">SU-1492</p>
-                <p className="text-lg mb-1">Москва (SVO) - Санкт-Петербург (LED)</p>
-                <p className="text-base text-muted-foreground">2 часа 20 минут</p>
+                <p className="font-bold text-2xl mb-2">{flightStatus.code}</p>
+                <p className="text-lg mb-1">{flightStatus.from} - {flightStatus.to}</p>
+                <p className="text-base text-muted-foreground">{flightStatus.duration}</p>
               </div>
             </div>
           </CardContent>
