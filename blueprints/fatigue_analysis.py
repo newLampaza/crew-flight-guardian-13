@@ -1,4 +1,3 @@
-
 import os
 import uuid
 import traceback
@@ -10,6 +9,7 @@ import subprocess
 from datetime import datetime
 from neural_network.predict import analyze_source
 from blueprints.auth import token_required
+from utils.date_utils import get_current_datetime
 
 # Setup logging for errors only
 fatigue_logger = logging.getLogger('fatigue_analysis')
@@ -118,9 +118,12 @@ def analyze_fatigue(current_user):
             if not os.path.exists(output_path):
                 return jsonify({'error': 'Failed to create analyzed video'}), 500
 
-            # Save analysis to database
+            # Save analysis to database with current local time
             conn = sqlite3.connect('database/database.db')
             conn.row_factory = sqlite3.Row
+            
+            # Get current datetime in the proper format
+            current_datetime = get_current_datetime()
             
             # Store the analysis with type 'realtime'
             cursor = conn.cursor()
@@ -128,13 +131,14 @@ def analyze_fatigue(current_user):
                 INSERT INTO FatigueAnalysis 
                 (employee_id, flight_id, analysis_type, fatigue_level, 
                 neural_network_score, analysis_date, video_path, resolution, fps)
-                VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 current_user['employee_id'],
                 None,  # No flight for realtime analysis
                 'realtime',
                 level,
                 percent/100 if percent else 0,
+                current_datetime,  # Use local datetime
                 output_name,  # Store only filename
                 details.get('resolution', 'unknown'),
                 details.get('fps', 0)
@@ -258,19 +262,23 @@ def analyze_flight(current_user):
                 'details': details
             }), 400
 
+        # Get current datetime in the proper format
+        current_datetime = get_current_datetime()
+
         # Save results with type 'flight'
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO FatigueAnalysis 
             (employee_id, flight_id, analysis_type, fatigue_level, 
              neural_network_score, analysis_date, video_path, resolution, fps)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             current_user['employee_id'],
             flight['flight_id'],
             'flight',
             level,
             percent/100 if percent else 0,
+            current_datetime,  # Use local datetime
             output_name,  # Store only filename
             details.get('resolution', 'unknown'),
             details.get('fps', 0)
@@ -340,13 +348,16 @@ def submit_fatigue_feedback(current_user):
         if existing_feedback:
             return jsonify({'error': 'Feedback already exists'}), 409
             
+        # Get current datetime in the proper format
+        current_datetime = get_current_datetime()
+            
         # Add feedback to FatigueAnalysisFeedback table
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO FatigueAnalysisFeedback 
             (employee_id, analysis_id, rating, comments, created_at)
-            VALUES (?, ?, ?, ?, datetime('now'))
-        ''', (current_user['employee_id'], analysis_id, score, ''))
+            VALUES (?, ?, ?, ?, ?)
+        ''', (current_user['employee_id'], analysis_id, score, '', current_datetime))
         
         conn.commit()
         feedback_id = cursor.lastrowid
