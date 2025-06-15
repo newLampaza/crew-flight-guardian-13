@@ -430,7 +430,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         
-        {/* Updated Fatigue Analysis with Real Data */}
+        {/* Fatigue Analysis with Real Data */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-2xl flex items-center gap-3">
