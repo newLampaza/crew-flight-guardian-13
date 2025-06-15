@@ -28,6 +28,8 @@ const Dashboard = () => {
   // Получаем реальные данные с бэка
   const { data: flightStats, isLoading: isStatsLoading } = useDashboardFlightStats();
   const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
+  // Обработка некорректного ответа (например, если data — это объект с _error)
+  const crewError = crewData && typeof crewData === "object" && ("_error" in crewData) ? (crewData as any)._error : null;
   const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
 
   // Защита от неправильного типа crewData
@@ -125,6 +127,8 @@ const Dashboard = () => {
           <CardContent>
             {isCrewLoading ? (
               <div className="text-center text-muted-foreground">Загрузка...</div>
+            ) : crewError ? (
+              <div className="text-center text-rose-500 font-semibold">{crewError}</div>
             ) : (
               <div className="space-y-4">
                 {safeCrewData.map((member: any) => (
