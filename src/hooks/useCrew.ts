@@ -17,16 +17,31 @@ export function useCrew() {
       console.log('Fetching crew data for user:', user?.id);
       
       try {
-        // Используем fetch вместо axios для более простой отладки
+        // Проверяем аутентификацию перед запросом
+        if (!isAuthenticated || !user?.id) {
+          console.log('User not authenticated, skipping crew fetch');
+          return [];
+        }
+
         const response = await fetch('/api/crew', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-Id': user?.id?.toString() || '',
+            'X-User-Id': user.id.toString(),
           },
         });
         
         console.log('Crew API response status:', response.status);
+        console.log('Crew API response content-type:', response.headers.get('content-type'));
+        
+        // Проверяем, что ответ действительно JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.error('Response is not JSON:', contentType);
+          const text = await response.text();
+          console.error('Response text:', text.substring(0, 200));
+          throw new Error(`Expected JSON but received ${contentType}`);
+        }
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -68,8 +83,17 @@ export function useCrew() {
         throw error;
       }
     },
+    // Исправляем условие enabled - запрос должен выполняться только если пользователь аутентифицирован
     enabled: isAuthenticated && !!user?.id,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
+    // Добавляем retry: false, чтобы не повторять запросы при ошибках аутентификации
+    retry: (failureCount, error) => {
+      // Не повторяем запросы, если это ошибка парсинга JSON (HTML ответ)
+      if (error instanceof SyntaxError && error.message.includes('Unexpected token')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 }
