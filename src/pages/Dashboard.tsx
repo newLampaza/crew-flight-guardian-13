@@ -16,7 +16,8 @@ import {
   Battery,
   AlertTriangle,
   Activity,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from "lucide-react";
 import { useDashboardFlightStats } from "@/hooks/useDashboardFlightStats";
 import { useDashboardCrew } from "@/hooks/useDashboardCrew";
@@ -37,6 +38,22 @@ const Dashboard = () => {
   if (isMedical()) {
     return <MedicalHome />;
   }
+
+  const formatFlightTime = (timeString) => {
+    if (!timeString) return '';
+    try {
+      const date = new Date(timeString);
+      return date.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return timeString;
+    }
+  };
 
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
@@ -148,10 +165,16 @@ const Dashboard = () => {
         <Card className="hover-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-2xl flex items-center gap-3">
-              <Clock className="h-6 w-6 text-primary" />
-              Текущий полет
+              {currentFlight?.isActive ? (
+                <Clock className="h-6 w-6 text-green-500" />
+              ) : (
+                <Calendar className="h-6 w-6 text-blue-500" />
+              )}
+              {currentFlight?.isActive ? 'Текущий полет' : 'Следующий рейс'}
             </CardTitle>
-            <CardDescription className="text-base">Информация о рейсе</CardDescription>
+            <CardDescription className="text-base">
+              {currentFlight?.isActive ? 'Информация о рейсе' : 'Запланированный рейс'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {isFlightLoading ? (
@@ -159,13 +182,32 @@ const Dashboard = () => {
             ) : currentFlight?.flight_number ? (
               <div className="space-y-4">
                 <div className="text-center p-6 bg-secondary rounded-lg">
-                  <p className="font-bold text-2xl mb-2">{currentFlight.flight_number}</p>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <p className="font-bold text-2xl">{currentFlight.flight_number}</p>
+                    <Badge variant={currentFlight.isActive ? "default" : "secondary"}>
+                      {currentFlight.isActive ? 'Активный' : 'Запланирован'}
+                    </Badge>
+                  </div>
                   <p className="text-lg mb-1">{currentFlight.route}</p>
-                  <p className="text-base text-muted-foreground">{currentFlight.duration}</p>
+                  
+                  {currentFlight.isActive ? (
+                    <p className="text-base text-muted-foreground">{currentFlight.duration}</p>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-base text-muted-foreground">
+                        Отправление: {formatFlightTime(currentFlight.departure_time)}
+                      </p>
+                      {currentFlight.arrival_time && (
+                        <p className="text-base text-muted-foreground">
+                          Прибытие: {formatFlightTime(currentFlight.arrival_time)}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
-              <div className="text-muted-foreground text-center text-base">Нет активного рейса</div>
+              <div className="text-muted-foreground text-center text-base">Нет запланированных рейсов</div>
             )}
           </CardContent>
         </Card>
