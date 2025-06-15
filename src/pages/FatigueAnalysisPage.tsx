@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -82,6 +81,75 @@ const fatigueStats = [
     details: "Ниже рекомендуемой нормы"
   }
 ];
+
+const fatigueLevelColor = (score: number) => {
+  if (score > 70) return "bg-red-500";
+  if (score > 30) return "bg-amber-400";
+  return "bg-emerald-500";
+};
+
+const fatigueLevelLabel = (level?: string) => {
+  if (!level) return "Неизвестно";
+  if (level === "High" || level === "Высокий") return "Высокий";
+  if (level === "Medium" || level === "Средний") return "Средний";
+  if (level === "Low" || level === "Низкий") return "Низкий";
+  return "Неизвестно";
+};
+
+// Мини-компонент для одной записи истории анализа
+function HistoryAnalysisRow({
+  analysis_id,
+  analysis_type,
+  analysis_date,
+  neural_network_score,
+  fatigue_level,
+}: {
+  analysis_id: number;
+  analysis_type: "flight" | "realtime";
+  analysis_date: string;
+  neural_network_score: number;
+  fatigue_level?: string;
+}) {
+  const score = Math.round((neural_network_score || 0) * 100);
+  const formattedDate = (() => {
+    try {
+      const dt = new Date(analysis_date);
+      return dt.toLocaleString("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return analysis_date;
+    }
+  })();
+  return (
+    <div className="flex items-center justify-between rounded-xl bg-slate-800/80 dark:bg-slate-950/70 px-5 py-4 mb-3 last:mb-0 shadow-sm">
+      <div className="flex items-center gap-3 min-w-0">
+        <span className={`w-3 h-3 rounded-full shrink-0 ${fatigueLevelColor(score)}`} />
+        <div>
+          <div className="font-medium text-base text-white truncate">
+            #{analysis_id}{" "}
+            <span className="opacity-80 text-xs">
+              (
+              {analysis_type === "flight" ? "Рейс" : "Реальное время"}
+              )
+            </span>
+          </div>
+          <div className="text-xs text-slate-300">{formattedDate}</div>
+        </div>
+      </div>
+      <div className="flex flex-col items-end min-w-[60px]">
+        <span className="font-bold text-xl text-white">
+          {score}%
+        </span>
+        <span className="text-xs mt-0.5 text-slate-300">{fatigueLevelLabel(fatigue_level)}</span>
+      </div>
+    </div>
+  );
+}
 
 const FatigueAnalysisPage = () => {
   const [analysisMode, setAnalysisMode] = useState<'realtime' | 'flight' | null>(null);
@@ -206,47 +274,27 @@ const FatigueAnalysisPage = () => {
         <div className="space-y-6">
           <FatigueStatusCard fatigueLevel={currentFatigueLevel} />
 
-          {/* History Card */}
-          <Card className="hover:shadow-lg transition-all duration-200 overflow-hidden">
+          {/* Improved History Card */}
+          <Card className="transition-all duration-200 overflow-hidden bg-[#101828] border border-[#222f44] rounded-2xl">
             <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-5">
                 <Activity className="h-5 w-5 text-primary" />
-                <h3 className="font-medium">История анализов</h3>
+                <h3 className="font-semibold text-lg text-white">История анализов</h3>
               </div>
-              <div className="space-y-3">
-                {historyData.slice(0, 5).map((item) => (
-                  <div key={`history-${item.analysis_id}`} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900 rounded-md">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        (item.neural_network_score || 0) > 0.7 ? 'bg-rose-500' : 
-                        (item.neural_network_score || 0) > 0.4 ? 'bg-amber-500' : 
-                        'bg-emerald-500'
-                      }`} />
-                      <div>
-                        <div className="text-sm font-medium">
-                          #{item.analysis_id} ({item.analysis_type === 'flight' ? 'Рейс' : 'Реальное время'})
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDate(item.analysis_date)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-medium">
-                        {Math.round((item.neural_network_score || 0) * 100)}%
-                      </div>
-                      {item.fatigue_level && (
-                        <div className="text-xs text-muted-foreground">
-                          {item.fatigue_level === 'High' ? 'Высокий' :
-                           item.fatigue_level === 'Medium' ? 'Средний' :
-                           item.fatigue_level === 'Low' ? 'Низкий' : 'Неизвестно'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {historyData.length === 0 && (
-                  <div className="text-sm text-muted-foreground text-center py-4">
+              <div className="space-y-0">
+                {historyData.length > 0 ? (
+                  historyData.slice(0, 6).map((item) => (
+                    <HistoryAnalysisRow
+                      key={`history-${item.analysis_id}`}
+                      analysis_id={item.analysis_id}
+                      analysis_type={item.analysis_type}
+                      analysis_date={item.analysis_date}
+                      neural_network_score={item.neural_network_score}
+                      fatigue_level={item.fatigue_level}
+                    />
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-400 text-center py-6">
                     Нет данных анализов
                   </div>
                 )}
