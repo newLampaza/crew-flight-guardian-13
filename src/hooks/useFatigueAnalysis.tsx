@@ -42,6 +42,27 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Улучшенная функция для парсинга дат
+const parseAnalysisDate = (dateString: string): Date => {
+  try {
+    // Если дата в формате "YYYY-MM-DD HH:MM:SS", заменяем пробел на T
+    let isoString = dateString;
+    if (dateString.includes(' ') && !dateString.includes('T')) {
+      isoString = dateString.replace(' ', 'T');
+    }
+    
+    // Убираем миллисекунды если они есть, но оставляем секунды
+    if (isoString.includes('.')) {
+      isoString = isoString.split('.')[0];
+    }
+    
+    return new Date(isoString);
+  } catch {
+    console.warn('Failed to parse date:', dateString);
+    return new Date(); // Fallback to current date
+  }
+};
+
 export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult) => void) {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -51,6 +72,7 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
     percent: 0
   });
   const [historyData, setHistoryData] = useState<HistoryData[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
 
   const loadHistory = useCallback(async () => {
     try {
@@ -61,14 +83,15 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       const rawData = response.data || [];
       console.log("Raw data length:", rawData.length);
       
-      // Принудительная сортировка по дате (новые сверху) и analysis_id
+      // Улучшенная сортировка с правильным парсингом дат
       const sortedData = rawData.sort((a: HistoryData, b: HistoryData) => {
-        const dateA = new Date(a.analysis_date).getTime();
-        const dateB = new Date(b.analysis_date).getTime();
+        const dateA = parseAnalysisDate(a.analysis_date);
+        const dateB = parseAnalysisDate(b.analysis_date);
         
         // Сначала по дате (новые сверху)
-        if (dateB !== dateA) {
-          return dateB - dateA;
+        const timeDiff = dateB.getTime() - dateA.getTime();
+        if (timeDiff !== 0) {
+          return timeDiff;
         }
         
         // Если даты равны, то по analysis_id (больший ID сверху)
@@ -79,6 +102,7 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       console.log("First 3 items:", sortedData.slice(0, 3));
       
       setHistoryData(sortedData);
+      setLastUpdate(Date.now()); // Принудительное обновление
     } catch (error) {
       console.error("Error loading history:", error);
       toast({
@@ -139,8 +163,10 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       setAnalysisResult(result);
       
       console.log("Analysis completed, reloading history...");
-      // Принудительно перезагружаем историю после анализа
-      await loadHistory();
+      // Небольшая задержка перед перезагрузкой для обеспечения сохранения на сервере
+      setTimeout(async () => {
+        await loadHistory();
+      }, 1000);
 
       setAnalysisProgress({ loading: false, message: "Анализ завершен", percent: 100 });
       
@@ -191,8 +217,10 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       setAnalysisResult(result);
       
       console.log("Flight analysis completed, reloading history...");
-      // Принудительно перезагружаем историю после анализа рейса
-      await loadHistory();
+      // Небольшая задержка перед перезагрузкой для обеспечения сохранения на сервере
+      setTimeout(async () => {
+        await loadHistory();
+      }, 1000);
       
       setAnalysisProgress({ loading: false, message: "Анализ завершен", percent: 100 });
 
@@ -219,7 +247,7 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
 
   const formatDate = useCallback((dateString: string) => {
     try {
-      const date = new Date(dateString);
+      const date = parseAnalysisDate(dateString);
       return date.toLocaleString('ru-RU', {
         year: 'numeric',
         month: '2-digit', 
@@ -238,6 +266,7 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
     recordedBlob,
     analysisProgress,
     historyData,
+    lastUpdate, // Добавляем для принудительного обновления
     submitRecording,
     analyzeFlight,
     submitFeedback,

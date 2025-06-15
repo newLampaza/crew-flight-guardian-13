@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,17 +104,27 @@ function HistoryAnalysisRow({
   analysis_date,
   neural_network_score,
   fatigue_level,
+  key: itemKey,
 }: {
   analysis_id: number;
   analysis_type: "flight" | "realtime";
   analysis_date: string;
   neural_network_score: number;
   fatigue_level?: string;
+  key: string;
 }) {
   const score = Math.round((neural_network_score || 0) * 100);
   const formattedDate = (() => {
     try {
-      const dt = new Date(analysis_date);
+      // Улучшенный парсинг даты
+      let isoString = analysis_date;
+      if (analysis_date.includes(' ') && !analysis_date.includes('T')) {
+        isoString = analysis_date.replace(' ', 'T');
+      }
+      if (isoString.includes('.')) {
+        isoString = isoString.split('.')[0];
+      }
+      const dt = new Date(isoString);
       return dt.toLocaleString("ru-RU", {
         day: "2-digit",
         month: "2-digit",
@@ -125,8 +136,23 @@ function HistoryAnalysisRow({
       return analysis_date;
     }
   })();
+
+  const fatigueLevelColor = (score: number) => {
+    if (score > 70) return "bg-red-500";
+    if (score > 30) return "bg-amber-400";
+    return "bg-emerald-500";
+  };
+
+  const fatigueLevelLabel = (level?: string) => {
+    if (!level) return "Неизвестно";
+    if (level === "High" || level === "Высокий") return "Высокий";
+    if (level === "Medium" || level === "Средний") return "Средний";
+    if (level === "Low" || level === "Низкий") return "Низкий";
+    return "Неизвестно";
+  };
+
   return (
-    <div className="flex items-center justify-between rounded-xl bg-slate-800/80 dark:bg-slate-950/70 px-5 py-4 mb-3 last:mb-0 shadow-sm">
+    <div key={itemKey} className="flex items-center justify-between rounded-xl bg-slate-800/80 dark:bg-slate-950/70 px-5 py-4 mb-3 last:mb-0 shadow-sm">
       <div className="flex items-center gap-3 min-w-0">
         <span className={`w-3 h-3 rounded-full shrink-0 ${fatigueLevelColor(score)}`} />
         <div>
@@ -177,6 +203,7 @@ const FatigueAnalysisPage = () => {
     recordedBlob,
     analysisProgress, 
     historyData,
+    lastUpdate, // Используем для принудительного обновления
     submitRecording, 
     analyzeFlight,
     submitFeedback,
@@ -202,11 +229,11 @@ const FatigueAnalysisPage = () => {
   useEffect(() => {
     loadHistory();
     
-    // Автоматическое обновление каждые 30 секунд
+    // Автоматическое обновление каждые 15 секунд (уменьшили интервал)
     const interval = setInterval(() => {
       console.log("Auto-refreshing history...");
       loadHistory();
-    }, 30000);
+    }, 15000);
     
     return () => clearInterval(interval);
   }, [loadHistory]);
@@ -309,7 +336,12 @@ const FatigueAnalysisPage = () => {
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
                   <Activity className="h-5 w-5 text-primary" />
-                  <h3 className="font-semibold text-lg text-white">История анализов</h3>
+                  <h3 className="font-semibold text-lg text-white">
+                    История анализов
+                    <span className="text-xs text-slate-400 ml-2">
+                      ({historyData.length})
+                    </span>
+                  </h3>
                 </div>
                 <Button
                   variant="ghost"
@@ -325,7 +357,7 @@ const FatigueAnalysisPage = () => {
                 {historyData.length > 0 ? (
                   historyData.slice(0, 6).map((item) => (
                     <HistoryAnalysisRow
-                      key={`history-${item.analysis_id}-${item.analysis_date}`}
+                      key={`${item.analysis_id}-${item.analysis_date}-${lastUpdate}`}
                       analysis_id={item.analysis_id}
                       analysis_type={item.analysis_type}
                       analysis_date={item.analysis_date}
