@@ -1,10 +1,10 @@
-
 from logging.handlers import RotatingFileHandler
 import os
 from flask import Flask, send_from_directory, jsonify, request, Response
 from flask_cors import CORS
 import logging
 from datetime import timedelta
+from functools import wraps
 
 # Import blueprints
 from blueprints.auth import auth_bp, AuthError, handle_auth_error
@@ -233,6 +233,72 @@ def serve_video(filename):
 
 # Test sessions storage for cognitive tests
 test_sessions = {}
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Здесь пример получения пользователя из сессии/jwt
+        user_id = request.headers.get("X-User-Id") or None
+        if not user_id:
+            return jsonify({"error": "Unauthorized"}), 401
+        g.current_user_id = int(user_id)
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/api/flightstats", methods=["GET"])
+@login_required
+def get_flight_stats():
+    """
+    Возвращает статистику полетов для текущего пользователя:
+    flights and hours — за неделю и за месяц
+    Использует таблицу Flights и соответствие user=employee_id
+    """
+    import sqlite3
+
+    conn = sqlite3.connect("database/database.db")
+    cur = conn.cursor()
+
+    user_id = g.current_user_id
+
+    # Парсим даты
+    today = datetime.today()
+    week_ago = today - timedelta(days=7)
+    month_ago = today - timedelta(days=30)
+
+    # За неделю: считаем количество рейсов и суммарные часы (разница прибытия/отправления)
+    cur.execute("""
+        SELECT COUNT(*), SUM(
+          (julianday(arrival_time) - julianday(departure_time))*24.0
+        )
+        FROM Flights
+        WHERE employee_id=?
+          AND departure_time >= ?
+    """, (user_id, week_ago.strftime("%Y-%m-%d %H:%M:%S")))
+    weekly_flights, weekly_hours = cur.fetchone()
+    weekly_flights = weekly_flights or 0
+    weekly_hours = round(weekly_hours or 0, 1)
+
+    # За месяц: то же самое
+    cur.execute("""
+        SELECT COUNT(*), SUM(
+          (julianday(arrival_time) - julianday(departure_time))*24.0
+        )
+        FROM Flights
+        WHERE employee_id=?
+          AND departure_time >= ?
+    """, (user_id, month_ago.strftime("%Y-%m-%d %H:%M:%S")))
+    monthly_flights, monthly_hours = cur.fetchone()
+    monthly_flights = monthly_flights or 0
+    monthly_hours = round(monthly_hours or 0, 1)
+
+    conn.close()
+
+    return jsonify({
+        "weeklyFlights": weekly_flights,
+        "weeklyHours": weekly_hours,
+        "monthlyFlights": monthly_flights,
+        "monthlyHours": monthly_hours
+    })
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
 import MedicalHome from './MedicalHome';
@@ -18,25 +18,12 @@ import {
   Activity,
   ChevronRight
 } from "lucide-react";
+import { useFlightStats } from "@/hooks/useFlightStats";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
-  
-  // Mock data for flight stats
-  const flightStats = {
-    weeklyFlights: 4,
-    weeklyHours: 18,
-    monthlyFlights: 16,
-    monthlyHours: 72
-  };
-  
-  // Mock crew data
-  const crewData = [
-    { id: 1, name: "Иванов И.И.", position: "Капитан" },
-    { id: 2, name: "Петрова А.С.", position: "Второй пилот" },
-    { id: 3, name: "Сидоров М.В.", position: "Бортпроводник" },
-    { id: 4, name: "Кузнецов Д.А.", position: "Бортпроводник" }
-  ];
+
+  const { data: flightStats, isLoading: loadingStats, error: statsError } = useFlightStats();
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -81,7 +68,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-    
+
       {/* Statistics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {/* Flight Statistics */}
@@ -94,27 +81,35 @@ const Dashboard = () => {
             <CardDescription className="text-base">Текущая неделя и месяц</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-5">
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Количество полетов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
+            {loadingStats ? (
+              <div className="py-8 text-center text-muted-foreground">Загрузка...</div>
+            ) : statsError ? (
+              <div className="py-8 text-center text-destructive">Ошибка загрузки статистики</div>
+            ) : flightStats ? (
+              <div className="space-y-5">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Количество полетов за неделю</span>
+                  <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Налет часов за неделю</span>
+                  <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Количество полетов за месяц</span>
+                  <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Налет часов за месяц</span>
+                  <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Налет часов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Количество полетов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Налет часов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
-              </div>
-            </div>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground">Нет данных</div>
+            )}
           </CardContent>
         </Card>
-        
+
         {/* Current Crew */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
