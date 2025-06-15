@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -181,9 +180,14 @@ const SchedulePage = () => {
   // группируем по дню (для недели/месяца)
   const groupFlightsByDay = (flights: Flight[], days: Date[]) => {
     return days.map(day => {
-      const flightsForDay = flights.filter(f =>
-        isSameDay(new Date(f.departure.time), day)
-      );
+      const flightsForDay = flights
+        .filter(f =>
+          isSameDay(new Date(f.departure.time), day)
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.departure.time).getTime() - new Date(b.departure.time).getTime()
+        );
       return { date: day, flights: flightsForDay };
     });
   };
@@ -385,4 +389,3 @@ const SchedulePage = () => {
 };
 
 export default SchedulePage;
-
