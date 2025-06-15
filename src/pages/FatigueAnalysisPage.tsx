@@ -299,6 +299,52 @@ const FatigueAnalysisPage = () => {
     cleanup();
   };
 
+  // Вспомогательная функция: возвращает дату YYYY-MM-DD
+  const getDayString = (date: Date) =>
+    date.toISOString().slice(0, 10);
+
+  // 1. Определяем текущую дату (локально, чтобы совпадало с сервером и пользователем)
+  const todayStr = getDayString(new Date());
+
+  // 2. Анализы за сегодня типа 'realtime'
+  const todaysRealtime = historyData.filter(
+    h =>
+      h.analysis_type === "realtime" &&
+      h.analysis_date &&
+      getDayString(new Date(h.analysis_date)) === todayStr
+  );
+
+  // 3. Анализы по рейсам за сегодня (берём последний анализ для каждого уникального flight_id с сегодняшней датой прилёта)
+  // Сначала находим рейсы за сегодня: 
+  // - должны иметь flight_id и departure_time (берём из flights)
+  const todaysFlights = flights.filter(f => f.arrival_time && getDayString(new Date(f.arrival_time)) === todayStr);
+
+  // Для каждого такого рейса ищем последний анализ из истории по flight_id
+  const flightFatigueAnalyses = todaysFlights
+    .map(flight => {
+      const historyOfFlight = historyData
+        .filter(h => h.analysis_type === "flight" && h.flight_id === flight.flight_id);
+      if (historyOfFlight.length === 0) return null;
+      // берём анализ с самой поздней датой
+      return historyOfFlight.reduce((latest, h) => 
+        new Date(h.analysis_date) > new Date(latest.analysis_date) ? h : latest
+      );
+    })
+    .filter(Boolean);
+
+  // 4. Объединяем все today's fatigue analyses (realtime + по рейсам)
+  const todayAllAnalyses = [
+    ...todaysRealtime,
+    ...flightFatigueAnalyses
+  ];
+
+  // 5. Вычисляем среднее значение (если нет анализов за сегодня - показываем null)
+  const todaysAvgFatigue = todayAllAnalyses.length > 0
+    ? Math.round(
+        todayAllAnalyses.reduce((acc, h) => acc + ((h.neural_network_score || 0) * 100), 0) / todayAllAnalyses.length
+      )
+    : null;
+
   // Вычисляем текущий уровень усталости на основе последнего анализа
   const currentFatigueLevel = historyData.length > 0 
     ? Math.round((historyData[0].neural_network_score || 0) * 100)
@@ -337,7 +383,14 @@ const FatigueAnalysisPage = () => {
 
         {/* Status and History */}
         <div className="space-y-6">
-          <FatigueStatusCard fatigueLevel={currentFatigueLevel} />
+          <FatigueStatusCard
+            fatigueLevel={
+              todaysAvgFatigue !== null
+                ? todaysAvgFatigue
+                : 65 // по умолчанию
+            }
+            lastUpdated="сегодня"
+          />
 
           {/* Improved History Card with Refresh Button */}
           <Card className="transition-all duration-200 overflow-hidden bg-[#101828] border border-[#222f44] rounded-2xl">
