@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
 import MedicalHome from './MedicalHome';
@@ -18,15 +18,25 @@ import {
   Activity,
   ChevronRight
 } from "lucide-react";
-import { useFlightStats } from "@/hooks/useFlightStats";
-import { useCrew } from "@/hooks/useCrew";
-import CrewCard from "@/components/CrewCard";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
-
-  const { data: flightStats, isLoading: loadingStats, error: statsError } = useFlightStats();
-  const { data: crewData, isLoading: crewLoading, error: crewError } = useCrew();
+  
+  // Mock data for flight stats
+  const flightStats = {
+    weeklyFlights: 4,
+    weeklyHours: 18,
+    monthlyFlights: 16,
+    monthlyHours: 72
+  };
+  
+  // Mock crew data
+  const crewData = [
+    { id: 1, name: "Иванов И.И.", position: "Капитан" },
+    { id: 2, name: "Петрова А.С.", position: "Второй пилот" },
+    { id: 3, name: "Сидоров М.В.", position: "Бортпроводник" },
+    { id: 4, name: "Кузнецов Д.А.", position: "Бортпроводник" }
+  ];
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -71,7 +81,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-
+    
       {/* Statistics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {/* Flight Statistics */}
@@ -84,38 +94,53 @@ const Dashboard = () => {
             <CardDescription className="text-base">Текущая неделя и месяц</CardDescription>
           </CardHeader>
           <CardContent>
-            {loadingStats ? (
-              <div className="py-8 text-center text-muted-foreground">Загрузка...</div>
-            ) : statsError ? (
-              <div className="py-8 text-center text-destructive">Ошибка загрузки статистики</div>
-            ) : flightStats ? (
-              <div className="space-y-5">
-                <div className="flex justify-between items-center">
-                  <span className="text-base font-medium">Количество полетов за неделю</span>
-                  <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-base font-medium">Налет часов за неделю</span>
-                  <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-base font-medium">Количество полетов за месяц</span>
-                  <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-base font-medium">Налет часов за месяц</span>
-                  <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
-                </div>
+            <div className="space-y-5">
+              <div className="flex justify-between items-center">
+                <span className="text-base font-medium">Количество полетов за неделю</span>
+                <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
               </div>
-            ) : (
-              <div className="py-8 text-center text-muted-foreground">Нет данных</div>
-            )}
+              <div className="flex justify-between items-center">
+                <span className="text-base font-medium">Налет часов за неделю</span>
+                <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-base font-medium">Количество полетов за месяц</span>
+                <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-base font-medium">Налет часов за месяц</span>
+                <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
-
-        {/* Crew Card — теперь отдельный компонент */}
-        <CrewCard crewData={crewData} isLoading={crewLoading} error={crewError} />
-
+        
+        {/* Current Crew */}
+        <Card className="hover-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-2xl flex items-center gap-3">
+              <Users className="h-6 w-6 text-primary" />
+              Текущий экипаж
+            </CardTitle>
+            <CardDescription className="text-base">Рейс SU-1492, Москва - Санкт-Петербург</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {crewData.map(member => (
+                <div 
+                  key={member.id} 
+                  className="flex justify-between items-center gap-4"
+                >
+                  <div className="flex-grow truncate">
+                    <span className="block text-base font-medium truncate">{member.name}</span>
+                    <span className="block text-sm text-muted-foreground truncate">{member.position}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        
         {/* Flight Status */}
         <Card className="hover-card">
           <CardHeader className="pb-2">

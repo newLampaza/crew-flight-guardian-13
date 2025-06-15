@@ -1,11 +1,10 @@
+
 from logging.handlers import RotatingFileHandler
 import os
-from flask import Flask, send_from_directory, jsonify, request, Response, g
+from flask import Flask, send_from_directory, jsonify, request, Response
 from flask_cors import CORS
 import logging
-from datetime import timedelta, datetime
-from functools import wraps
-import sqlite3
+from datetime import timedelta
 
 # Import blueprints
 from blueprints.auth import auth_bp, AuthError, handle_auth_error
@@ -234,128 +233,6 @@ def serve_video(filename):
 
 # Test sessions storage for cognitive tests
 test_sessions = {}
-
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Здесь пример получения пользователя из сессии/jwt
-        user_id = request.headers.get("X-User-Id") or None
-        if not user_id:
-            return jsonify({"error": "Unauthorized"}), 401
-        g.current_user_id = int(user_id)
-        return f(*args, **kwargs)
-    return decorated_function
-
-@app.route("/api/flightstats", methods=["GET"])
-@login_required
-def get_flight_stats():
-    """
-    Возвращает статистику полетов для текущего пользователя:
-    flights and hours — за неделю и за месяц
-    Использует таблицы Flights, CrewMembers и правильные связи
-    """
-    try:
-        conn = sqlite3.connect("database/database.db")
-        cur = conn.cursor()
-
-        user_id = g.current_user_id
-
-        # Парсим даты
-        today = datetime.today()
-        week_ago = today - timedelta(days=7)
-        month_ago = today - timedelta(days=30)
-
-        # За неделю: считаем количество рейсов и суммарные часы через JOIN с CrewMembers
-        cur.execute("""
-            SELECT COUNT(DISTINCT f.flight_id), SUM(
-              (julianday(f.arrival_time) - julianday(f.departure_time))*24.0
-            )
-            FROM Flights f
-            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
-            WHERE cm.employee_id = ?
-              AND f.departure_time >= ?
-        """, (user_id, week_ago.strftime("%Y-%m-%d %H:%M:%S")))
-        weekly_result = cur.fetchone()
-        weekly_flights = weekly_result[0] if weekly_result[0] else 0
-        weekly_hours = round(weekly_result[1] if weekly_result[1] else 0, 1)
-
-        # За месяц: то же самое
-        cur.execute("""
-            SELECT COUNT(DISTINCT f.flight_id), SUM(
-              (julianday(f.arrival_time) - julianday(f.departure_time))*24.0
-            )
-            FROM Flights f
-            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
-            WHERE cm.employee_id = ?
-              AND f.departure_time >= ?
-        """, (user_id, month_ago.strftime("%Y-%m-%d %H:%M:%S")))
-        monthly_result = cur.fetchone()
-        monthly_flights = monthly_result[0] if monthly_result[0] else 0
-        monthly_hours = round(monthly_result[1] if monthly_result[1] else 0, 1)
-
-        conn.close()
-
-        return jsonify({
-            "weeklyFlights": weekly_flights,
-            "weeklyHours": weekly_hours,
-            "monthlyFlights": monthly_flights,
-            "monthlyHours": monthly_hours
-        })
-    except Exception as e:
-        logger.error(f"Error in get_flight_stats: {e}")
-        return jsonify({"error": "Internal server error"}), 500
-
-@app.route("/api/crew", methods=["GET"])
-@login_required
-def get_crew():
-    """
-    Возвращает текущий экипаж для пользователя.
-    Находит последний рейс пользователя и возвращает весь экипаж этого рейса.
-    """
-    try:
-        conn = sqlite3.connect("database/database.db")
-        cur = conn.cursor()
-
-        user_id = g.current_user_id
-
-        # Получим последний рейс пользователя через CrewMembers
-        cur.execute(
-            """
-            SELECT f.flight_id, f.flight_number, f.crew_id
-            FROM Flights f
-            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
-            WHERE cm.employee_id = ?
-            ORDER BY f.departure_time DESC
-            LIMIT 1
-            """,
-            (user_id,),
-        )
-        row = cur.fetchone()
-        if not row:
-            conn.close()
-            return jsonify([])  # Нет рейсов — нет экипажа
-
-        flight_id, flight_number, crew_id = row
-
-        # Получим ВСЕХ сотрудников (экипаж) этого рейса с правильными названиями полей
-        cur.execute(
-            """
-            SELECT e.employee_id, e.name, cm.role
-            FROM CrewMembers cm
-            JOIN Employees e ON cm.employee_id = e.employee_id
-            WHERE cm.crew_id = ?
-            """,
-            (crew_id,),
-        )
-        crew = [
-            {"id": emp_id, "name": name, "position": role}
-            for (emp_id, name, role) in cur.fetchall()
-        ]
-        conn.close()
-        return jsonify(crew)
-    except Exception as e:
-        logger.error(f"Error in get_crew: {e}")
-        return jsonify([])  # Возвращаем пустой массив при ошибке
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
