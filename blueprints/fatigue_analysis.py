@@ -1,5 +1,4 @@
 
-
 import os
 import uuid
 import traceback
@@ -123,32 +122,22 @@ def analyze_fatigue(current_user):
             conn = sqlite3.connect('database/database.db')
             conn.row_factory = sqlite3.Row
             
-            # Get current flight information
-            flight = conn.execute('''
-                SELECT flight_id FROM Flights 
-                WHERE crew_id = (
-                    SELECT crew_id FROM CrewMembers 
-                    WHERE employee_id = ?
-                )
-                ORDER BY arrival_time DESC 
-                LIMIT 1
-            ''', (current_user['employee_id'],)).fetchone()
-            
-            flight_id = flight['flight_id'] if flight else None
-            
-            # Store the analysis (save only filename, not full path)
+            # Store the analysis with type 'realtime'
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO FatigueAnalysis 
-                (employee_id, flight_id, fatigue_level, 
-                neural_network_score, analysis_date, video_path)
-                VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)
+                (employee_id, flight_id, analysis_type, fatigue_level, 
+                neural_network_score, analysis_date, video_path, resolution, fps)
+                VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
             ''', (
                 current_user['employee_id'],
-                flight_id,
+                None,  # No flight for realtime analysis
+                'realtime',
                 level,
                 percent/100 if percent else 0,
-                output_name  # Store only filename
+                output_name,  # Store only filename
+                details.get('resolution', 'unknown'),
+                details.get('fps', 0)
             ))
             conn.commit()
             analysis_id = cursor.lastrowid
@@ -236,6 +225,15 @@ def analyze_flight(current_user):
         if not flight:
             return jsonify({'error': 'Flight not found'}), 404
 
+        # Check if analysis already exists for this flight
+        existing_analysis = conn.execute('''
+            SELECT analysis_id FROM FatigueAnalysis 
+            WHERE employee_id = ? AND flight_id = ? AND analysis_type = 'flight'
+        ''', (current_user['employee_id'], flight_id)).fetchone()
+
+        if existing_analysis:
+            return jsonify({'error': 'Flight analysis already exists'}), 409
+
         # Get video file path using standardized function
         full_video_path = get_video_file_path(video_path)
         
@@ -260,19 +258,22 @@ def analyze_flight(current_user):
                 'details': details
             }), 400
 
-        # Save results
+        # Save results with type 'flight'
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO FatigueAnalysis 
-            (employee_id, flight_id, fatigue_level, 
-             neural_network_score, analysis_date, video_path)
-            VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)
+            (employee_id, flight_id, analysis_type, fatigue_level, 
+             neural_network_score, analysis_date, video_path, resolution, fps)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
         ''', (
             current_user['employee_id'],
             flight['flight_id'],
+            'flight',
             level,
             percent/100 if percent else 0,
-            output_name  # Store only filename
+            output_name,  # Store only filename
+            details.get('resolution', 'unknown'),
+            details.get('fps', 0)
         ))
         analysis_id = cursor.lastrowid
         conn.commit()
@@ -299,8 +300,6 @@ def analyze_flight(current_user):
     finally:
         if conn:
             conn.close()
-
-# ... keep existing code (feedback, history, and get_analysis functions)
 
 @fatigue_bp.route('/feedback', methods=['POST'])
 @token_required
@@ -331,18 +330,32 @@ def submit_fatigue_feedback(current_user):
         
         if not analysis:
             return jsonify({'error': 'Analysis not found'}), 404
+
+        # Check if feedback already exists
+        existing_feedback = conn.execute('''
+            SELECT 1 FROM FatigueAnalysisFeedback 
+            WHERE employee_id = ? AND analysis_id = ?
+        ''', (current_user['employee_id'], analysis_id)).fetchone()
+
+        if existing_feedback:
+            return jsonify({'error': 'Feedback already exists'}), 409
             
-        # Update feedback score
-        conn.execute(
-            'UPDATE FatigueAnalysis SET feedback_score = ? WHERE analysis_id = ?',
-            (score, analysis_id)
-        )
+        # Add feedback to FatigueAnalysisFeedback table
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO FatigueAnalysisFeedback 
+            (employee_id, analysis_id, rating, comments, created_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+        ''', (current_user['employee_id'], analysis_id, score, ''))
+        
         conn.commit()
+        feedback_id = cursor.lastrowid
         
         return jsonify({
             'status': 'success',
-            'updated_id': analysis_id,
-            'new_score': score
+            'feedback_id': feedback_id,
+            'analysis_id': analysis_id,
+            'rating': score
         })
         
     except Exception as e:
@@ -366,11 +379,12 @@ def get_fatigue_history(current_user):
                 fa.analysis_date,
                 fa.fatigue_level,
                 fa.neural_network_score,
-                fa.feedback_score,
                 fa.video_path,
+                fa.analysis_type,
                 f.from_code,
                 f.to_code,
-                f.departure_time
+                f.departure_time,
+                f.flight_id
             FROM FatigueAnalysis fa
             LEFT JOIN Flights f ON fa.flight_id = f.flight_id
             WHERE fa.employee_id = ?
