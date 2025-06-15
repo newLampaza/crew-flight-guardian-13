@@ -33,6 +33,12 @@ const Dashboard = () => {
 
   const { user, flightStats, crew, lastFatigue, testsStatus, medical } = data;
 
+  // Проверим, что flightStats не undefined
+  const hasFlightStats = !!flightStats && typeof flightStats.weeklyFlights !== 'undefined';
+
+  // Проверим, что crew.members - это массив
+  const crewMembers = Array.isArray(crew?.members) ? crew.members : [];
+
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
       <div className="mb-8">
@@ -81,24 +87,28 @@ const Dashboard = () => {
             <CardDescription className="text-base">Текущая неделя и месяц</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-5">
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Количество полетов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
+            {hasFlightStats ? (
+              <div className="space-y-5">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Количество полетов за неделю</span>
+                  <span className="text-xl font-bold">{flightStats.weeklyFlights}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Налет часов за неделю</span>
+                  <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Количество полетов за месяц</span>
+                  <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-medium">Налет часов за месяц</span>
+                  <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Налет часов за неделю</span>
-                <span className="text-xl font-bold">{flightStats.weeklyHours} ч</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Количество полетов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyFlights}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base font-medium">Налет часов за месяц</span>
-                <span className="text-xl font-bold">{flightStats.monthlyHours} ч</span>
-              </div>
-            </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">Нет данных о полетах</div>
+            )}
           </CardContent>
         </Card>
 
@@ -113,17 +123,21 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {crew.members.map((member, idx) => (
-                <div 
-                  key={idx} 
-                  className="flex justify-between items-center gap-4"
-                >
-                  <div className="flex-grow truncate">
-                    <span className="block text-base font-medium truncate">{member.name}</span>
-                    <span className="block text-sm text-muted-foreground truncate">{member.position}</span>
+              {crewMembers.length > 0 ? (
+                crewMembers.map((member, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex justify-between items-center gap-4"
+                  >
+                    <div className="flex-grow truncate">
+                      <span className="block text-base font-medium truncate">{member.name}</span>
+                      <span className="block text-sm text-muted-foreground truncate">{member.position}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">Нет данных о членах экипажа</div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -162,8 +176,8 @@ const Dashboard = () => {
           <CardContent>
             <div className="flex flex-col items-center py-2">
               <div className="mb-3 text-4xl font-bold">{lastFatigue?.fatigue_level || "--"}</div>
-              <div className="text-base text-muted-foreground">Нейросеть: {lastFatigue?.neural_network_score}</div>
-              <div className="text-sm text-muted-foreground">{lastFatigue?.analysis_date}</div>
+              <div className="text-base text-muted-foreground">Нейросеть: {lastFatigue?.neural_network_score ?? "--"}</div>
+              <div className="text-sm text-muted-foreground">{lastFatigue?.analysis_date ?? "--"}</div>
             </div>
           </CardContent>
         </Card>
@@ -178,15 +192,19 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {testsStatus.map((t, idx) => (
-                <div className="flex items-center justify-between" key={idx}>
-                  <div className="flex flex-col w-2/3">
-                    <span className="text-base font-medium">{t.type}</span>
-                    <span className="text-xs text-muted-foreground">{t.date}</span>
+              {Array.isArray(testsStatus) && testsStatus.length > 0 ? (
+                testsStatus.map((t, idx) => (
+                  <div className="flex items-center justify-between" key={idx}>
+                    <div className="flex flex-col w-2/3">
+                      <span className="text-base font-medium">{t.type}</span>
+                      <span className="text-xs text-muted-foreground">{t.date}</span>
+                    </div>
+                    <span className="font-bold text-base">{t.score}</span>
                   </div>
-                  <span className="font-bold text-base">{t.score}</span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <div className="text-center py-6 text-muted-foreground">Нет свежих тестов</div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -232,7 +250,7 @@ const Dashboard = () => {
           <CardContent>
             <div className="flex flex-col items-center py-2">
               <Badge className="mb-2">{medical?.status === "passed" ? "Разрешен" : "Ограничения"}</Badge>
-              <div className="text-sm text-muted-foreground">{medical?.notes}</div>
+              <div className="text-sm text-muted-foreground">{medical?.notes ?? "--"}</div>
             </div>
           </CardContent>
         </Card>
@@ -242,3 +260,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
