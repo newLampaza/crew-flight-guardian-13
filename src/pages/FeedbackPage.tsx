@@ -207,7 +207,7 @@ const FeedbackPage = () => {
             ))
           ) : feedbackHistory.length > 0 ? (
             feedbackHistory.map((feedback) => (
-              <Card key={feedback.id}>
+              <Card key={`${feedback.type}-${feedback.id}`}>
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start flex-wrap gap-2">
                     <CardTitle className="text-xl">
