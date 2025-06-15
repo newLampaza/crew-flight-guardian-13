@@ -223,8 +223,12 @@ const FatigueAnalysisPage = () => {
                         'bg-emerald-500'
                       }`} />
                       <div>
-                        <div className="text-sm font-medium">#{item.analysis_id}</div>
-                        <div className="text-xs text-muted-foreground">{item.analysis_date}</div>
+                        <div className="text-sm font-medium">
+                          #{item.analysis_id} ({item.analysis_type === 'flight' ? 'Рейс' : 'Реальное время'})
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDate(item.analysis_date)}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,30 +62,6 @@ const FeedbackPage = () => {
   
   const currentFlightHasFeedback = selectedFlightId ? hasExistingFeedback(selectedFlightId) : false;
 
-  //Блок отзывов более недели
-  // useEffect(() => {
-  //   if (!flights?.length || !submitFeedback) return;
-
-  //   const now = new Date();
-  //   const oneWeekAgo = new Date(now);
-  //   oneWeekAgo.setDate(now.getDate() - 7);
-
-  //   const flight = flights.find(flight => {
-  //     const arrivalDate = new Date(flight.arrival_time);
-  //     return arrivalDate < oneWeekAgo && !hasExistingFeedback(flight.flight_id);
-  //   });
-
-  //   if (flight) {
-  //     console.log(`Auto-submitting feedback for old flight: ${flight.flight_id}`);
-  //     submitFeedback({
-  //       entityType: "flight",
-  //       entityId: flight.flight_id,
-  //       rating: 5,
-  //       comments: ""
-  //     });
-  //   }
-  // }, [flights, feedbackHistory, submitFeedback]);
-
   const availableFlights = flights?.filter(flight => {
     const arrivalDate = new Date(flight.arrival_time);
     const now = new Date();
@@ -107,12 +84,6 @@ const FeedbackPage = () => {
     
     setFeedbackText("");
     setFlightRating(0);
-  };
-
-  const getFeedbackStatusColor = (rating: number) => {
-    if (rating >= 4) return "bg-status-good text-white";
-    if (rating >= 3) return "bg-status-warning text-white";
-    return "bg-status-error text-white";
   };
 
   return (

@@ -1,266 +1,211 @@
 
-import { useState } from 'react';
-import { toast } from '@/components/ui/use-toast';
-import axios from 'axios';
+import { useState, useCallback } from "react";
+import axios from "axios";
+import { toast } from "@/components/ui/use-toast";
 
-interface AnalysisResult {
-  analysis_id?: number;
-  fatigue_level?: string;
-  neural_network_score?: number;
-  analysis_date?: string;
-  feedback_score?: number;
-  video_path?: string;
+export interface AnalysisResult {
+  analysis_id: number;
+  fatigue_level: string;
+  neural_network_score: number;
+  video_path: string;
   from_code?: string;
   to_code?: string;
-  resolution?: string;
-  fps?: number;
-  face_detection_ratio?: number;
-  frames_analyzed?: number;
-  error?: string;
+  resolution: string;
+  fps: number;
+  face_detection_ratio: number;
+  frames_analyzed: number;
 }
 
-interface Flight {
-  flight_id?: number;
+export interface HistoryData {
+  analysis_id: number;
+  analysis_date: string;
+  fatigue_level: string;
+  neural_network_score: number;
+  video_path: string;
+  analysis_type: 'flight' | 'realtime';
   from_code?: string;
   to_code?: string;
   departure_time?: string;
-  arrival_time?: string;
-  video_path?: string;
-}
-
-interface HistoryItem {
-  analysis_id: number;
-  neural_network_score: number;
-  analysis_date: string;
-  fatigue_level?: string;
   flight_id?: number;
-  from_code?: string;
-  to_code?: string;
 }
 
-const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5000/api';
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+const api = axios.create({
+  baseURL: 'http://localhost:5000',
+  withCredentials: true,
 });
 
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('fatigue-guard-token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("authToken") || localStorage.getItem("fatigue-guard-token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void) => {
+export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult) => void) {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState({
     loading: false,
-    message: '',
-    percent: 0,
+    message: "",
+    percent: 0
   });
-  const [historyData, setHistoryData] = useState<HistoryItem[]>([]);
+  const [historyData, setHistoryData] = useState<HistoryData[]>([]);
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
-      const response = await apiClient.get('/fatigue/history');
-      if (response.data) {
-        const formattedHistory = response.data.map((item: any) => ({
-          analysis_id: item.analysis_id,
-          neural_network_score: item.neural_network_score || 0,
-          analysis_date: item.analysis_date,
-          fatigue_level: item.fatigue_level,
-          flight_id: item.flight_id,
-          from_code: item.from_code,
-          to_code: item.to_code
-        }));
-        setHistoryData(formattedHistory);
-      }
+      const response = await api.get("/api/fatigue/history");
+      setHistoryData(response.data || []);
     } catch (error) {
-      setHistoryData([]);
+      console.error("Error loading history:", error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось загрузить историю анализов",
+        variant: "destructive"
+      });
     }
-  };
+  }, []);
 
-  const submitFeedback = async (analysisId: number, score: number) => {
+  const submitFeedback = useCallback(async (analysisId: number, score: number): Promise<boolean> => {
     try {
-      await apiClient.post('/fatigue/feedback', {
+      await api.post("/api/fatigue/feedback", {
         analysis_id: analysisId,
         score: score
       });
       
       toast({
-        title: "Отзыв сохранен",
-        description: `Спасибо за вашу оценку: ${score} из 5`
+        title: "Успешно",
+        description: "Отзыв отправлен"
       });
       
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      let errorMessage = "Ошибка при отправке отзыва";
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
       toast({
-        title: "Ошибка отправки отзыва",
-        description: "Не удалось сохранить отзыв",
+        title: "Ошибка", 
+        description: errorMessage,
         variant: "destructive"
       });
+      
       return false;
     }
-  };
+  }, []);
 
-  const submitRecording = async (blob: Blob) => {
+  const submitRecording = useCallback(async (blob: Blob) => {
+    setRecordedBlob(blob);
+    setAnalysisProgress({ loading: true, message: "Подготовка видео...", percent: 20 });
+
     try {
-      setRecordedBlob(blob);
-      setAnalysisProgress({
-        loading: true,
-        message: 'Обработка видео...',
-        percent: 20,
-      });
-
-      if (!blob || blob.size === 0) {
-        throw new Error('Записанное видео слишком короткое или повреждено');
-      }
-
       const formData = new FormData();
-      formData.append('video', blob, `recording_${Date.now()}.webm`);
+      formData.append('video', blob, 'recording.webm');
 
-      setAnalysisProgress({
-        loading: true,
-        message: 'Анализ нейросетью...',
-        percent: 60,
+      setAnalysisProgress({ loading: true, message: "Анализ видео...", percent: 60 });
+
+      const response = await api.post("/api/fatigue/analyze", formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      const response = await apiClient.post('/fatigue/analyze', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
-          setAnalysisProgress(p => ({
-            ...p,
-            percent: 40 + Math.min(percentCompleted / 2, 40),
-          }));
-        }
-      });
+      setAnalysisProgress({ loading: true, message: "Завершение анализа...", percent: 90 });
 
-      setAnalysisProgress({
-        loading: false,
-        message: '',
-        percent: 100,
-      });
-
-      if (response.data) {
-        setAnalysisResult(response.data);
-        if (onSuccess) onSuccess(response.data);
-        await loadHistory();
-      }
+      const result = response.data;
+      setAnalysisResult(result);
       
+      // Reload history to include new analysis
+      await loadHistory();
+      
+      setAnalysisProgress({ loading: false, message: "Анализ завершен", percent: 100 });
+      
+      if (onAnalysisComplete) {
+        onAnalysisComplete(result);
+      }
+
+      toast({
+        title: "Анализ завершен",
+        description: `Уровень усталости: ${Math.round(result.neural_network_score * 100)}%`
+      });
+
     } catch (error: any) {
-      setAnalysisProgress({loading: false, message: '', percent: 0});
+      setAnalysisProgress({ loading: false, message: "", percent: 0 });
       
-      if (error.response?.status === 401) {
-        toast({
-          title: "Ошибка авторизации",
-          description: "Необходимо выполнить вход в систему",
-          variant: "destructive"
-        });
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 2000);
-        return;
+      let errorMessage = "Ошибка при анализе видео";
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
       }
-      
-      if (error.response?.status === 400 && error.response?.data?.error?.includes('face')) {
-        const faceErrorResult = {
-          analysis_id: Math.floor(Math.random() * 1000) + 1,
-          fatigue_level: 'Unknown',
-          neural_network_score: 0,
-          analysis_date: new Date().toISOString(),
-          face_detection_ratio: 0,
-          error: error.response.data.error
-        };
-        setAnalysisResult(faceErrorResult);
-        if (onSuccess) onSuccess(faceErrorResult);
-        return;
-      }
-      
+
       toast({
         title: "Ошибка анализа",
-        description: error.message || "Неизвестная ошибка",
+        description: errorMessage,
         variant: "destructive"
       });
     }
-  };
+  }, [onAnalysisComplete, loadHistory]);
 
-  const analyzeFlight = async (flight?: Flight | null) => {
+  const analyzeFlight = useCallback(async (flight: any) => {
+    if (!flight) {
+      toast({
+        title: "Ошибка",
+        description: "Рейс не найден",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setAnalysisProgress({ loading: true, message: "Анализ рейса...", percent: 50 });
+
     try {
-      setAnalysisProgress({
-        loading: true,
-        message: 'Анализ видео рейса...',
-        percent: 40,
+      const response = await api.post("/api/fatigue/analyze-flight", {
+        flight_id: flight.flight_id,
+        video_path: flight.video_path
       });
 
-      // Use video_path from flight data, or generate expected filename
-      let videoPath = flight?.video_path;
+      const result = response.data;
+      setAnalysisResult(result);
       
-      if (!videoPath && flight?.flight_id && flight?.from_code && flight?.to_code) {
-        videoPath = `flight_${flight.flight_id}_${flight.from_code}_${flight.to_code}.mp4`;
-      }
+      // Reload history to include new analysis
+      await loadHistory();
       
-      if (!videoPath) {
-        throw new Error('Video path not available for this flight');
-      }
+      setAnalysisProgress({ loading: false, message: "Анализ завершен", percent: 100 });
 
-      const requestData = {
-        flight_id: flight?.flight_id,
-        video_path: videoPath
-      };
+      toast({
+        title: "Анализ рейса завершен",
+        description: `Уровень усталости: ${Math.round(result.neural_network_score * 100)}%`
+      });
 
-      const response = await apiClient.post('/fatigue/analyze-flight', requestData);
-
-      setAnalysisProgress({loading: false, message: '', percent: 100});
-
-      if (response.data) {
-        setAnalysisResult(response.data);
-        if (onSuccess) onSuccess(response.data);
-        await loadHistory();
-      }
-      
     } catch (error: any) {
-      setAnalysisProgress({loading: false, message: '', percent: 0});
+      setAnalysisProgress({ loading: false, message: "", percent: 0 });
       
-      if (error.response?.status === 404) {
-        const expectedFile = flight?.video_path || `flight_${flight?.flight_id}_${flight?.from_code}_${flight?.to_code}.mp4`;
-        toast({
-          title: "Видео не найдено",
-          description: `Видео рейса не найдено. Убедитесь, что файл ${expectedFile} существует в папке neural_network/data/video/`,
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Ошибка анализа рейса",
-          description: error.message || "Неизвестная ошибка",
-          variant: "destructive"
-        });
+      let errorMessage = "Ошибка при анализе рейса";
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
       }
+
+      toast({
+        title: "Ошибка анализа",
+        description: errorMessage,
+        variant: "destructive"
+      });
     }
-  };
+  }, [loadHistory]);
+
+  const formatDate = useCallback((dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('ru-RU', {
+        year: 'numeric',
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
+  }, []);
 
   return {
     analysisResult,
@@ -274,4 +219,4 @@ export const useFatigueAnalysis = (onSuccess?: (result: AnalysisResult) => void)
     loadHistory,
     formatDate
   };
-};
+}

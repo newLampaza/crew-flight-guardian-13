@@ -1,132 +1,119 @@
 
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Feedback, FeedbackSubmission } from "@/types/feedback";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/components/ui/use-toast";
 
-const FEEDBACK_API = "/api/feedback";
+export interface Feedback {
+  id: number;
+  type: 'flight' | 'fatigue_analysis';
+  entityId: number;
+  entityInfo: string;
+  rating: number;
+  comments: string;
+  date: string;
+}
+
+export interface SubmitFeedbackData {
+  entityType: 'flight' | 'fatigue_analysis';
+  entityId: number;
+  rating: number;
+  comments: string;
+}
 
 const api = axios.create({
   baseURL: 'http://localhost:5000',
   withCredentials: true,
-  headers: {
-    'Content-Type': 'application/json',
-  }
 });
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem("authToken") || localStorage.getItem("fatigue-guard-token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+// Add JWT token to requests
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("authToken") || localStorage.getItem("fatigue-guard-token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
+
+const fetchFeedback = async (): Promise<Feedback[]> => {
+  try {
+    const response = await api.get("/api/feedback");
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching feedback:", error);
+    throw error;
+  }
+};
+
+const submitFeedbackApi = async (data: SubmitFeedbackData) => {
+  try {
+    const response = await api.post("/api/feedback", {
+      entity_type: data.entityType,
+      entity_id: data.entityId,
+      rating: data.rating,
+      comments: data.comments
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error submitting feedback:", error);
+    throw error;
+  }
+};
 
 export function useFeedback() {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: feedbackHistory = [], isLoading, error } = useQuery({
+  const {
+    data: feedbackHistory = [],
+    isLoading,
+    error
+  } = useQuery({
     queryKey: ["feedback"],
-    queryFn: async () => {
-      try {
-        const { data } = await api.get<Feedback[]>(FEEDBACK_API);
-        return Array.isArray(data) ? data : [];
-      } catch (error) {
-        console.error("Error fetching feedback:", error);
-        return [];
-      }
-    }
+    queryFn: fetchFeedback,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
   });
 
-  // Helper function to check if feedback exists for a specific entity
-  const hasFeedbackForEntity = (entityType: string, entityId: number) => {
-    return Array.isArray(feedbackHistory) && feedbackHistory.some(
+  const submitMutation = useMutation({
+    mutationFn: submitFeedbackApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feedback"] });
+      toast({
+        title: "Успешно",
+        description: "Отзыв успешно отправлен",
+      });
+    },
+    onError: (error: any) => {
+      let errorMessage = "Ошибка при отправке отзыва";
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      toast({
+        title: "Ошибка",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const submitFeedback = (data: SubmitFeedbackData) => {
+    submitMutation.mutate(data);
+  };
+
+  const hasFeedbackForEntity = (entityType: 'flight' | 'fatigue_analysis', entityId: number): boolean => {
+    return feedbackHistory.some(
       feedback => feedback.type === entityType && feedback.entityId === entityId
     );
   };
 
-  const submitFeedback = useMutation({
-    mutationFn: async (feedback: FeedbackSubmission) => {
-      // For automatic submissions (empty comments), check if feedback already exists
-      const isAutoSubmission = feedback.comments === "";
-      if (isAutoSubmission) {
-        // Check if feedback already exists for this entity
-        if (hasFeedbackForEntity(feedback.entityType, feedback.entityId)) {
-          // Return a mock successful response to avoid triggering the error handler
-          return { 
-            id: -1, 
-            entity_type: feedback.entityType,
-            entity_id: feedback.entityId,
-            rating: feedback.rating,
-            comments: feedback.comments,
-            date: new Date().toISOString()
-          };
-        }
-      }
-      
-      try {
-        const requestData = {
-          entity_type: feedback.entityType,
-          entity_id: feedback.entityId,
-          rating: feedback.rating,
-          comments: feedback.comments
-        };
-        
-        const response = await api.post(FEEDBACK_API, requestData);
-        return response.data;
-      } catch (error) {
-        throw error;
-      }
-    },
-    onSuccess: (data) => {
-      // Only invalidate queries for real submissions (not mock responses from skipped auto-submissions)
-      if (data.id !== -1) {
-        queryClient.invalidateQueries({ queryKey: ["feedback"] });
-      }
-      
-      // Only show toast for manual submissions (with comments)
-      if (data.comments && data.comments.trim() !== "") {
-        toast({
-          title: "Отзыв отправлен",
-          description: "Спасибо за ваш отзыв!"
-        });
-      }
-    },
-    onError: (error: any) => {
-      // Handle 409 Conflict (feedback already exists)
-      if (error.response?.status === 409) {
-        // Check if this is an automatic submission (empty comments)
-        const isAutoSubmission = error.config?.data ? 
-          JSON.parse(error.config.data).comments === "" : false;
-        
-        if (!isAutoSubmission) {
-          toast({
-            title: "Отзыв уже существует",
-            description: "Вы уже оставили отзыв для этого объекта",
-            variant: "default"
-          });
-        }
-      } else {
-        toast({
-          title: "Ошибка отправки",
-          description: error.response?.data?.error || "Произошла ошибка при отправке отзыва",
-          variant: "destructive"
-        });
-      }
-    }
-  });
-
   return {
-    feedbackHistory: Array.isArray(feedbackHistory) ? feedbackHistory : [],
+    feedbackHistory,
     isLoading,
     error,
-    submitFeedback: submitFeedback.mutate,
-    hasFeedbackForEntity
+    submitFeedback,
+    hasFeedbackForEntity,
+    isSubmitting: submitMutation.isPending,
   };
 }
