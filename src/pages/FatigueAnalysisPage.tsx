@@ -177,7 +177,6 @@ function HistoryAnalysisRow({
 const FatigueAnalysisPage = () => {
   const [analysisMode, setAnalysisMode] = useState<'realtime' | 'flight' | null>(null);
   const [feedbackScore, setFeedbackScore] = useState(3);
-  const [feedbackComment, setFeedbackComment] = useState(""); // новое поле для комментария
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Загружаем реальные данные о рейсах
@@ -186,11 +185,12 @@ const FatigueAnalysisPage = () => {
   // Получаем последний завершенный рейс
   const lastFlight = flights.length > 0 
     ? flights
-        .sort((a, b) => {
-          const aTime = a.arrival_time ? new Date(a.arrival_time).getTime() : 0;
-          const bTime = b.arrival_time ? new Date(b.arrival_time).getTime() : 0;
-          return bTime - aTime;
-        })[0] || null
+        .filter(flight => {
+          const now = new Date();
+          const arrivalTime = flight.arrival_time ? new Date(flight.arrival_time) : null;
+          return arrivalTime && arrivalTime < now;
+        })
+        .sort((a, b) => new Date(b.arrival_time).getTime() - new Date(a.arrival_time).getTime())[0] || null
     : null;
 
   // Use our custom hooks
@@ -225,6 +225,14 @@ const FatigueAnalysisPage = () => {
   // Load history on mount and set up auto-refresh
   useEffect(() => {
     loadHistory();
+    
+    // Автоматическое обновление каждые 15 секунд (уменьшили интервал)
+    const interval = setInterval(() => {
+      console.log("Auto-refreshing history...");
+      loadHistory();
+    }, 15000);
+    
+    return () => clearInterval(interval);
   }, [loadHistory]);
 
   // Manual refresh function
@@ -257,32 +265,17 @@ const FatigueAnalysisPage = () => {
       });
       return;
     }
-    const success = await submitFeedback(analysisResult.analysis_id, feedbackScore, feedbackComment);
+    
+    const success = await submitFeedback(analysisResult.analysis_id, feedbackScore);
     if (success) {
       setAnalysisResult(null);
       setAnalysisMode(null);
-      setFeedbackScore(3);
-      setFeedbackComment("");
       cleanup();
     }
   };
 
   const handleAnalyzeFlight = () => {
-    // Найти уже существующий анализ по id последнего рейса
-    if (lastFlight) {
-      const existing = historyData.find(
-        a => a.flight_id === lastFlight.flight_id && a.analysis_type === "flight"
-      );
-      if (existing) {
-        toast({
-          title: "Анализ уже выполнен",
-          description: `Результат: ${Math.round(existing.neural_network_score * 100)}%, уровень: ${existing.fatigue_level ?? "неизвестно"}`,
-          variant: "info"
-        });
-        return;
-      }
-      analyzeFlight(lastFlight);
-    }
+    analyzeFlight(lastFlight);
   };
 
   const handleCloseDialog = () => {
@@ -423,7 +416,7 @@ const FatigueAnalysisPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Results dialog (добавлено поле для комментария) */}
+      {/* Results dialog */}
       <Dialog open={analysisResult !== null} onOpenChange={(open) => !open && handleCloseResults()}>
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -434,29 +427,13 @@ const FatigueAnalysisPage = () => {
           </DialogHeader>
           
           {analysisResult && (
-            <>
-              <AnalysisResult
-                analysisResult={analysisResult}
-                feedbackScore={feedbackScore}
-                setFeedbackScore={setFeedbackScore}
-                onClose={handleCloseResults}
-                onSubmitFeedback={handleSubmitFeedback}
-                // Передаем callback для обработки текста комментария — если AnalysisResult поддерживает
-                feedbackComment={feedbackComment}
-                setFeedbackComment={setFeedbackComment}
-              />
-              {/* Если AnalysisResult не поддерживает, можно сделать отдельный input прямо здесь */}
-              {/* <div className="mt-4">
-                <Label htmlFor="feedback-comment">Комментарий к анализу</Label>
-                <Textarea
-                  id="feedback-comment"
-                  value={feedbackComment}
-                  onChange={e => setFeedbackComment(e.target.value)}
-                  placeholder="Введите комментарий к анализу (необязательно)"
-                  rows={2}
-                />
-              </div> */}
-            </>
+            <AnalysisResult
+              analysisResult={analysisResult}
+              feedbackScore={feedbackScore}
+              setFeedbackScore={setFeedbackScore}
+              onClose={handleCloseResults}
+              onSubmitFeedback={handleSubmitFeedback}
+            />
           )}
         </DialogContent>
       </Dialog>

@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import axios from "axios";
 import { toast } from "@/components/ui/use-toast";
@@ -73,21 +74,37 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
   const [historyData, setHistoryData] = useState<HistoryData[]>([]);
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now());
 
-  // Загружаем историю без автоповтора!
   const loadHistory = useCallback(async () => {
     try {
+      console.log("Loading history data...");
       const response = await api.get("/api/fatigue/history");
+      console.log("History response:", response.data);
+      
       const rawData = response.data || [];
+      console.log("Raw data length:", rawData.length);
+      
+      // Улучшенная сортировка с правильным парсингом дат
       const sortedData = rawData.sort((a: HistoryData, b: HistoryData) => {
         const dateA = parseAnalysisDate(a.analysis_date);
         const dateB = parseAnalysisDate(b.analysis_date);
+        
+        // Сначала по дате (новые сверху)
         const timeDiff = dateB.getTime() - dateA.getTime();
-        if (timeDiff !== 0) return timeDiff;
+        if (timeDiff !== 0) {
+          return timeDiff;
+        }
+        
+        // Если даты равны, то по analysis_id (больший ID сверху)
         return b.analysis_id - a.analysis_id;
       });
+      
+      console.log("Sorted history data length:", sortedData.length);
+      console.log("First 3 items:", sortedData.slice(0, 3));
+      
       setHistoryData(sortedData);
-      setLastUpdate(Date.now());
+      setLastUpdate(Date.now()); // Принудительное обновление
     } catch (error) {
+      console.error("Error loading history:", error);
       toast({
         title: "Ошибка",
         description: "Не удалось загрузить историю анализов",
@@ -96,32 +113,35 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
     }
   }, []);
 
-  // Отправка отзыва обновлена: теперь принимает комментарий
-  const submitFeedback = useCallback(
-    async (analysisId: number, score: number, comment?: string): Promise<boolean> => {
-      try {
-        await api.post("/api/fatigue/feedback", {
-          analysis_id: analysisId,
-          score: score,
-          comments: comment ?? ""
-        });
-        toast({ title: "Успешно", description: "Отзыв отправлен" });
-        return true;
-      } catch (error: any) {
-        let errorMessage = "Ошибка при отправке отзыва";
-        if (error.response?.data?.error) {
-          errorMessage = error.response.data.error;
-        }
-        toast({
-          title: "Ошибка", 
-          description: errorMessage,
-          variant: "destructive"
-        });
-        return false;
+  const submitFeedback = useCallback(async (analysisId: number, score: number): Promise<boolean> => {
+    try {
+      await api.post("/api/fatigue/feedback", {
+        analysis_id: analysisId,
+        score: score
+      });
+      
+      toast({
+        title: "Успешно",
+        description: "Отзыв отправлен"
+      });
+      
+      return true;
+    } catch (error: any) {
+      let errorMessage = "Ошибка при отправке отзыва";
+      
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
       }
-    },
-    []
-  );
+      
+      toast({
+        title: "Ошибка", 
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      return false;
+    }
+  }, []);
 
   const submitRecording = useCallback(async (blob: Blob) => {
     setRecordedBlob(blob);
@@ -246,7 +266,7 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
     recordedBlob,
     analysisProgress,
     historyData,
-    lastUpdate,
+    lastUpdate, // Добавляем для принудительного обновления
     submitRecording,
     analyzeFlight,
     submitFeedback,
