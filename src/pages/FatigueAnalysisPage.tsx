@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
 import { Brain, Activity, RefreshCw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 // Import our components
 import { VideoRecorder } from "@/components/fatigue-analysis/VideoRecorder";
@@ -177,12 +178,13 @@ function HistoryAnalysisRow({
 const FatigueAnalysisPage = () => {
   const [analysisMode, setAnalysisMode] = useState<'realtime' | 'flight' | null>(null);
   const [feedbackScore, setFeedbackScore] = useState(3);
+  const [feedbackComment, setFeedbackComment] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Загружаем реальные данные о рейсах
   const { data: flights = [], isLoading: flightsLoading } = useFlights();
   
-  // Получаем последний завершенный рейс
+  // Получаем последний завершённый рейс (arrival_time < now)
   const lastFlight = flights.length > 0 
     ? flights
         .filter(flight => {
@@ -222,20 +224,12 @@ const FatigueAnalysisPage = () => {
     onRecordingComplete: submitRecording 
   });
 
-  // Load history on mount and set up auto-refresh
+  // Загрузка истории только один раз на маунте
   useEffect(() => {
     loadHistory();
-    
-    // Автоматическое обновление каждые 15 секунд (уменьшили интервал)
-    const interval = setInterval(() => {
-      console.log("Auto-refreshing history...");
-      loadHistory();
-    }, 15000);
-    
-    return () => clearInterval(interval);
   }, [loadHistory]);
 
-  // Manual refresh function
+  // Ручное обновление истории
   const handleManualRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -255,7 +249,7 @@ const FatigueAnalysisPage = () => {
     }
   }, [loadHistory]);
 
-  // Handle feedback submission
+  // Feedback
   const handleSubmitFeedback = async () => {
     if (!analysisResult?.analysis_id) {
       toast({
@@ -265,19 +259,33 @@ const FatigueAnalysisPage = () => {
       });
       return;
     }
-    
-    const success = await submitFeedback(analysisResult.analysis_id, feedbackScore);
+    const success = await submitFeedback(analysisResult.analysis_id, feedbackScore, feedbackComment);
     if (success) {
+      setFeedbackComment("");
       setAnalysisResult(null);
       setAnalysisMode(null);
       cleanup();
     }
   };
 
+  // Проверка: был ли уже проведён анализ последнего рейса
   const handleAnalyzeFlight = () => {
+    if (!lastFlight) return;
+    const existing = historyData.find(
+      h => h.analysis_type === "flight" && h.flight_id === lastFlight.flight_id
+    );
+    if (existing) {
+      toast({
+        title: "Анализ уже выполнен",
+        description: `Этот рейс (#${existing.flight_id}) уже проанализирован. Итог усталости: ${Math.round((existing.neural_network_score || 0) * 100)}% (${existing.fatigue_level || "не определено"}).`,
+        variant: "warning"
+      });
+      return;
+    }
     analyzeFlight(lastFlight);
   };
 
+  // Manual refresh function
   const handleCloseDialog = () => {
     setAnalysisMode(null);
     cleanup();
@@ -435,6 +443,16 @@ const FatigueAnalysisPage = () => {
               onSubmitFeedback={handleSubmitFeedback}
             />
           )}
+          {/* Поле для комментария к отзыву */}
+          <div className="mt-4">
+            <label htmlFor="feedback-comment" className="block mb-1 text-sm text-muted-foreground">Комментарий к отзыву</label>
+            <Textarea
+              id="feedback-comment"
+              value={feedbackComment}
+              onChange={e => setFeedbackComment(e.target.value)}
+              placeholder="Оставьте комментарий к анализу (необязательно)"
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
