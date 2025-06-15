@@ -252,7 +252,7 @@ def get_flight_stats():
     """
     Возвращает статистику полетов для текущего пользователя:
     flights and hours — за неделю и за месяц
-    Использует таблицу Flights и соответствие user=employee_id
+    Использует таблицы Flights, CrewMembers и правильные связи
     """
     try:
         conn = sqlite3.connect("database/database.db")
@@ -265,31 +265,33 @@ def get_flight_stats():
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
 
-        # За неделю: считаем количество рейсов и суммарные часы (разница прибытия/отправления)
+        # За неделю: считаем количество рейсов и суммарные часы через JOIN с CrewMembers
         cur.execute("""
-            SELECT COUNT(*), SUM(
-              (julianday(arrival_time) - julianday(departure_time))*24.0
+            SELECT COUNT(DISTINCT f.flight_id), SUM(
+              (julianday(f.arrival_time) - julianday(f.departure_time))*24.0
             )
-            FROM Flights
-            WHERE employee_id=?
-              AND departure_time >= ?
+            FROM Flights f
+            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+            WHERE cm.employee_id = ?
+              AND f.departure_time >= ?
         """, (user_id, week_ago.strftime("%Y-%m-%d %H:%M:%S")))
-        weekly_flights, weekly_hours = cur.fetchone()
-        weekly_flights = weekly_flights or 0
-        weekly_hours = round(weekly_hours or 0, 1)
+        weekly_result = cur.fetchone()
+        weekly_flights = weekly_result[0] if weekly_result[0] else 0
+        weekly_hours = round(weekly_result[1] if weekly_result[1] else 0, 1)
 
         # За месяц: то же самое
         cur.execute("""
-            SELECT COUNT(*), SUM(
-              (julianday(arrival_time) - julianday(departure_time))*24.0
+            SELECT COUNT(DISTINCT f.flight_id), SUM(
+              (julianday(f.arrival_time) - julianday(f.departure_time))*24.0
             )
-            FROM Flights
-            WHERE employee_id=?
-              AND departure_time >= ?
+            FROM Flights f
+            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+            WHERE cm.employee_id = ?
+              AND f.departure_time >= ?
         """, (user_id, month_ago.strftime("%Y-%m-%d %H:%M:%S")))
-        monthly_flights, monthly_hours = cur.fetchone()
-        monthly_flights = monthly_flights or 0
-        monthly_hours = round(monthly_hours or 0, 1)
+        monthly_result = cur.fetchone()
+        monthly_flights = monthly_result[0] if monthly_result[0] else 0
+        monthly_hours = round(monthly_result[1] if monthly_result[1] else 0, 1)
 
         conn.close()
 
@@ -307,8 +309,8 @@ def get_flight_stats():
 @login_required
 def get_crew():
     """
-    Возвращает текущий экипаж для пользователя (или обороты пользователя, если данная логика нужна).
-    Для MVP — пусть вернёт экипаж текущего последнего (самого свежего) рейса пользователя.
+    Возвращает текущий экипаж для пользователя.
+    Находит последний рейс пользователя и возвращает весь экипаж этого рейса.
     """
     try:
         conn = sqlite3.connect("database/database.db")
@@ -316,13 +318,14 @@ def get_crew():
 
         user_id = g.current_user_id
 
-        # Получим последний рейс пользователя
+        # Получим последний рейс пользователя через CrewMembers
         cur.execute(
             """
-            SELECT id, flight_code
-            FROM Flights
-            WHERE employee_id=?
-            ORDER BY departure_time DESC
+            SELECT f.flight_id, f.flight_number, f.crew_id
+            FROM Flights f
+            JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+            WHERE cm.employee_id = ?
+            ORDER BY f.departure_time DESC
             LIMIT 1
             """,
             (user_id,),
@@ -332,21 +335,21 @@ def get_crew():
             conn.close()
             return jsonify([])  # Нет рейсов — нет экипажа
 
-        flight_id, flight_code = row
+        flight_id, flight_number, crew_id = row
 
-        # Получим ВСЕХ сотрудников (экипаж) этого рейса
+        # Получим ВСЕХ сотрудников (экипаж) этого рейса с правильными названиями полей
         cur.execute(
             """
-            SELECT Employees.id, Employees.full_name, CrewMembers.position
-            FROM CrewMembers
-            JOIN Employees ON CrewMembers.employee_id = Employees.id
-            WHERE CrewMembers.flight_id=?
+            SELECT e.employee_id, e.name, cm.role
+            FROM CrewMembers cm
+            JOIN Employees e ON cm.employee_id = e.employee_id
+            WHERE cm.crew_id = ?
             """,
-            (flight_id,),
+            (crew_id,),
         )
         crew = [
-            {"id": emp_id, "name": full_name, "position": position}
-            for (emp_id, full_name, position) in cur.fetchall()
+            {"id": emp_id, "name": name, "position": role}
+            for (emp_id, name, role) in cur.fetchall()
         ]
         conn.close()
         return jsonify(crew)
