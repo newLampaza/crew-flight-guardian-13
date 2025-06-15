@@ -1,4 +1,3 @@
-
 from logging.handlers import RotatingFileHandler
 import os
 from flask import Flask, send_from_directory, jsonify, request, Response
@@ -233,6 +232,68 @@ def serve_video(filename):
 
 # Test sessions storage for cognitive tests
 test_sessions = {}
+
+@app.route('/api/flight-stats', methods=['GET'])
+def get_flight_stats():
+    """
+    Fetch weekly and monthly flight stats for the current user
+    using JWT token for authentication (employee_id).
+    """
+    from blueprints.auth import token_required
+    @token_required
+    def protected(current_user):
+        try:
+            conn = sqlite3.connect('database/database.db')
+            conn.row_factory = sqlite3.Row
+
+            # Получаем employee_id текущего пользователя
+            employee_id = current_user['employee_id']
+
+            now = datetime.now()
+
+            # Периоды
+            week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            week_start_str = week_start.strftime('%Y-%m-%dT%H:%M:%S')
+            month_start_str = month_start.strftime('%Y-%m-%dT%H:%M:%S')
+
+            # Считаем completed + scheduled
+            weekly = conn.execute(
+                """
+                SELECT COUNT(*) as flights, COALESCE(SUM(duration),0) as hours
+                FROM Flights f
+                JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+                WHERE cm.employee_id = ?
+                  AND f.departure_time >= ?
+                  AND f.status IN ('completed','scheduled')
+                """,
+                (employee_id, week_start_str)
+            ).fetchone()
+            monthly = conn.execute(
+                """
+                SELECT COUNT(*) as flights, COALESCE(SUM(duration),0) as hours
+                FROM Flights f
+                JOIN CrewMembers cm ON f.crew_id = cm.crew_id
+                WHERE cm.employee_id = ?
+                  AND f.departure_time >= ?
+                  AND f.status IN ('completed','scheduled')
+                """,
+                (employee_id, month_start_str)
+            ).fetchone()
+            # Часы округляем вниз до целых (или показываем с минутами на фронте)
+            result = {
+                "weeklyFlights": weekly['flights'],
+                "weeklyHours": int(weekly['hours'] // 60),
+                "monthlyFlights": monthly['flights'],
+                "monthlyHours": int(monthly['hours'] // 60)
+            }
+            conn.close()
+            return jsonify(result)
+        except Exception as e:
+            import logging
+            logging.error(f'[FlightStats] {e}')
+            return jsonify({'error': 'Failed to fetch flight stats'}), 500
+    return protected()
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
