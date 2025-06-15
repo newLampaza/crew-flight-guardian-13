@@ -300,5 +300,54 @@ def get_flight_stats():
         "monthlyHours": monthly_hours
     })
 
+@app.route("/api/crew", methods=["GET"])
+@login_required
+def get_crew():
+    """
+    Возвращает текущий экипаж для пользователя (или обороты пользователя, если данная логика нужна).
+    Для MVP — пусть вернёт экипаж текущего последнего (самого свежего) рейса пользователя.
+    """
+    import sqlite3
+
+    conn = sqlite3.connect("database/database.db")
+    cur = conn.cursor()
+
+    user_id = g.current_user_id
+
+    # Получим последний рейс пользователя
+    cur.execute(
+        """
+        SELECT id, flight_code
+        FROM Flights
+        WHERE employee_id=?
+        ORDER BY departure_time DESC
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify([])  # Нет рейсов — нет экипажа
+
+    flight_id, flight_code = row
+
+    # Получим ВСЕХ сотрудников (экипаж) этого рейса
+    cur.execute(
+        """
+        SELECT Employees.id, Employees.full_name, CrewMembers.position
+        FROM CrewMembers
+        JOIN Employees ON CrewMembers.employee_id = Employees.id
+        WHERE CrewMembers.flight_id=?
+        """,
+        (flight_id,),
+    )
+    crew = [
+        {"id": emp_id, "name": full_name, "position": position}
+        for (emp_id, full_name, position) in cur.fetchall()
+    ]
+    conn.close()
+    return jsonify(crew)
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

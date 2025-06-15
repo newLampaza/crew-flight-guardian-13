@@ -19,30 +19,14 @@ import {
   ChevronRight
 } from "lucide-react";
 import { useFlightStats } from "@/hooks/useFlightStats";
+import { useCrew } from "@/hooks/useCrew";
+import CrewCard from "@/components/CrewCard";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
 
   const { data: flightStats, isLoading: loadingStats, error: statsError } = useFlightStats();
-
-  // Временный мок — при необходимости заменить на реальный запрос
-  const crewData = [
-    {
-      id: 1,
-      name: "Иванов И.И.",
-      position: "Командир экипажа"
-    },
-    {
-      id: 2,
-      name: "Петров П.П.",
-      position: "Второй пилот"
-    },
-    {
-      id: 3,
-      name: "Сидорова А.А.",
-      position: "Бортпроводник"
-    }
-  ];
+  const { data: crewData, isLoading: crewLoading, error: crewError } = useCrew();
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -129,32 +113,9 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Current Crew */}
-        <Card className="hover-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-2xl flex items-center gap-3">
-              <Users className="h-6 w-6 text-primary" />
-              Текущий экипаж
-            </CardTitle>
-            <CardDescription className="text-base">Рейс SU-1492, Москва - Санкт-Петербург</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {crewData.map(member => (
-                <div 
-                  key={member.id} 
-                  className="flex justify-between items-center gap-4"
-                >
-                  <div className="flex-grow truncate">
-                    <span className="block text-base font-medium truncate">{member.name}</span>
-                    <span className="block text-sm text-muted-foreground truncate">{member.position}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-        
+        {/* Crew Card — теперь отдельный компонент */}
+        <CrewCard crewData={crewData} isLoading={crewLoading} error={crewError} />
+
         {/* Flight Status */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
