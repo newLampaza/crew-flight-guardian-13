@@ -28,12 +28,7 @@ const Dashboard = () => {
   // Получаем реальные данные с бэка
   const { data: flightStats, isLoading: isStatsLoading } = useDashboardFlightStats();
   const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
-  // Обработка некорректного ответа (например, если data — это объект с _error)
-  const crewError = crewData && typeof crewData === "object" && ("_error" in crewData) ? (crewData as any)._error : null;
   const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
-
-  // Защита от неправильного типа crewData
-  const safeCrewData = Array.isArray(crewData) ? crewData : [];
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -127,11 +122,9 @@ const Dashboard = () => {
           <CardContent>
             {isCrewLoading ? (
               <div className="text-center text-muted-foreground">Загрузка...</div>
-            ) : crewError ? (
-              <div className="text-center text-rose-500 font-semibold">{crewError}</div>
             ) : (
               <div className="space-y-4">
-                {safeCrewData.map((member: any) => (
+                {crewData && Array.isArray(crewData) && crewData.map((member: any) => (
                   <div 
                     key={member.id} 
                     className="flex justify-between items-center gap-4"
@@ -143,7 +136,7 @@ const Dashboard = () => {
                     <Badge className="ml-4">{member.role}</Badge>
                   </div>
                 ))}
-                {safeCrewData.length === 0 && (
+                {(!crewData || !Array.isArray(crewData) || crewData.length === 0) && (
                   <div className="text-muted-foreground text-center text-base">Нет данных по экипажу</div>
                 )}
               </div>
