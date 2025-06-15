@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -6,22 +7,32 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { format, addMonths, subMonths, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay } from "date-fns";
+import {
+  format,
+  addMonths,
+  subMonths,
+  startOfWeek,
+  endOfWeek,
+  endOfMonth,
+  isSameDay,
+  isSameMonth,
+  startOfMonth,
+  differenceInCalendarDays
+} from "date-fns";
 import { ru } from "date-fns/locale";
-import { 
-  Calendar as CalendarIcon, 
-  Clock, 
-  MapPin, 
-  PlaneTakeoff, 
-  PlaneLanding,
+import {
+  Calendar as CalendarIcon,
   ArrowLeft,
   ArrowRight,
   List,
   LayoutList,
+  PlaneTakeoff,
+  PlaneLanding,
+  MapPin,
+  Clock
 } from "lucide-react";
 import "../components/ui/schedule-view.css";
 import { useFlights, FlightApi } from "@/hooks/useFlights";
-import { useEffect, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Airport {
@@ -64,7 +75,6 @@ const prepareFlights = (flights: FlightApi[] | undefined): Flight[] => {
   if (!flights || !Array.isArray(flights)) {
     return [];
   }
-  
   return flights.map(f => ({
     id: f.flight_id,
     flightNumber: f.flight_id && f.flight_id.toString().startsWith("SU")
@@ -87,21 +97,6 @@ const prepareFlights = (flights: FlightApi[] | undefined): Flight[] => {
   }));
 };
 
-const formatDate = (dateString: string) => {
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  } catch (error) {
-    console.error("Error formatting date:", error);
-    return dateString; // Return original string if formatting fails
-  }
-};
-
 const formatDateShort = (dateString: string) => {
   try {
     const date = new Date(dateString);
@@ -110,7 +105,6 @@ const formatDateShort = (dateString: string) => {
       minute: '2-digit'
     });
   } catch (error) {
-    console.error("Error formatting date:", error);
     return dateString;
   }
 };
@@ -149,27 +143,70 @@ const FlightCard = ({ flight }: { flight: Flight }) => {
   );
 };
 
+type ViewMode = "week" | "month";
+
 const SchedulePage = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("week");
   const { data, isLoading, error } = useFlights();
   const { toast } = useToast();
 
   useEffect(() => {
     if (error) {
-      console.error("Ошибка загрузки расписания:", error);
       toast({ title: "Ошибка загрузки расписания", description: "Не удалось получить расписание рейсов.", variant: "destructive" });
     }
   }, [error, toast]);
 
-  useEffect(() => {
-    console.log("Данные полетов:", data);
-  }, [data]);
-
   const allFlights = useMemo(() => prepareFlights(data), [data]);
 
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  // Cчитаем неделю для предстоящих рейсов с currentDate до конца недели
+  const fullWeekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+
+  // only days from currentDate to weekEnd (инклюзивно)
+  const getUpcomingWeekDays = () => {
+    const days: Date[] = [];
+    let d = new Date(currentDate);
+    d.setHours(0,0,0,0);
+    const last = new Date(weekEnd);
+    last.setHours(0,0,0,0);
+    while (d <= last) {
+      days.push(new Date(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return days;
+  };
+
+  // группируем по дню (для недели/месяца)
+  const groupFlightsByDay = (flights: Flight[], days: Date[]) => {
+    return days.map(day => {
+      const flightsForDay = flights.filter(f =>
+        isSameDay(new Date(f.departure.time), day)
+      );
+      return { date: day, flights: flightsForDay };
+    });
+  };
+
+  // MONTH view: только дни выбранного месяца, где есть рейсы
+  const getMonthGroupedFlights = (flights: Flight[], date: Date) => {
+    const start = startOfMonth(date);
+    const end = endOfMonth(date);
+    // Считаем дни месяца, в которых есть хотя бы один рейс
+    const daysWithFlights: Date[] = [];
+    let d = new Date(start);
+    d.setHours(0,0,0,0);
+    const last = new Date(end);
+    last.setHours(0,0,0,0);
+    while (d <= last) {
+      const hasFlights = flights.some(f =>
+        isSameDay(new Date(f.departure.time), d)
+      );
+      if (hasFlights) daysWithFlights.push(new Date(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return groupFlightsByDay(flights, daysWithFlights);
+  };
 
   const flightsByStatus = useMemo(() => {
     const upcoming: Flight[] = [];
@@ -181,22 +218,42 @@ const SchedulePage = () => {
     return { upcoming, past };
   }, [allFlights]);
 
-  const groupFlightsByDay = (flights: Flight[]) => {
-    const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
-    return days.map(day => {
-      const flightsForDay = flights.filter(f => isSameDay(new Date(f.departure.time), day));
-      return { date: day, flights: flightsForDay };
-    });
-  };
+  // --- WEEK view: только с currentDate до конца недели
+  const weekDays = useMemo(() =>
+    getUpcomingWeekDays(), [currentDate, weekEnd]
+  );
 
-  const upcomingFlightsByDay = useMemo(
-    () => groupFlightsByDay(flightsByStatus.upcoming),
-    [flightsByStatus.upcoming, weekStart, weekEnd]
+  // --- MONTH view: только дни месяца, где есть рейсы
+  const monthDays = useMemo(
+    () => {
+      return getMonthGroupedFlights(flightsByStatus.upcoming, currentDate);
+    },
+    [flightsByStatus.upcoming, currentDate]
   );
-  const pastFlightsByDay = useMemo(
-    () => groupFlightsByDay(flightsByStatus.past),
-    [flightsByStatus.past, weekStart, weekEnd]
+  const monthDaysPast = useMemo(
+    () => {
+      return getMonthGroupedFlights(flightsByStatus.past, currentDate);
+    },
+    [flightsByStatus.past, currentDate]
   );
+
+  // Рейсы будущие: неделя с текущего дня/или месяц
+  const displayedUpcoming = viewMode === "week"
+    ? groupFlightsByDay(flightsByStatus.upcoming, weekDays)
+    : monthDays;
+
+  // Рейсы завершённые: вся неделя/месяц
+  const displayedPast = viewMode === "week"
+    ? groupFlightsByDay(
+        flightsByStatus.past,
+        Array.from({ length: differenceInCalendarDays(weekEnd, fullWeekStart) + 1 })
+          .map((_, idx) => {
+            const d = new Date(fullWeekStart);
+            d.setDate(d.getDate() + idx);
+            return d;
+          })
+      )
+    : monthDaysPast;
 
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
@@ -237,6 +294,24 @@ const SchedulePage = () => {
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
+          <div className="view-toggle">
+            <Button
+              variant={viewMode === "week" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("week")}
+            >
+              <LayoutList className="h-4 w-4 mr-1" />
+              Неделя
+            </Button>
+            <Button
+              variant={viewMode === "month" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("month")}
+            >
+              <List className="h-4 w-4 mr-1" />
+              Месяц
+            </Button>
+          </div>
         </div>
       </div>
       <Tabs defaultValue="upcoming" className="w-full">
@@ -248,50 +323,60 @@ const SchedulePage = () => {
           <div className="week-view">
             {isLoading ? (
               <div className="text-center w-full py-8">Загрузка...</div>
-            ) : upcomingFlightsByDay.map((day, index) => (
-              <div key={index} className="day-column">
-                <div className="day-header">
-                  <div className="text-sm font-bold">{formatWeekday(day.date)}</div>
-                  <div className="text-xs text-muted-foreground">{formatDayMonth(day.date)}</div>
+            ) : displayedUpcoming.length === 0 ? (
+              <div className="text-center w-full py-8">Нет предстоящих рейсов</div>
+            ) : displayedUpcoming.map((day, index) => (
+                <div key={index} className="day-column">
+                  <div className="day-header">
+                    <div className="text-sm font-bold">
+                      {formatWeekday(day.date)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {formatDayMonth(day.date)}
+                    </div>
+                  </div>
+                  {day.flights.length > 0 ? (
+                    <div className="space-y-2">
+                      {day.flights.map((flight) => (
+                        <FlightCard key={flight.id} flight={flight} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      Нет рейсов
+                    </div>
+                  )}
                 </div>
-                {day.flights.length > 0 ? (
-                  <div className="space-y-2">
-                    {day.flights.map((flight) => (
-                      <FlightCard key={flight.id} flight={flight} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground text-center py-4">
-                    Нет рейсов
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            )}
           </div>
         </TabsContent>
         <TabsContent value="past">
           <div className="week-view">
             {isLoading ? (
               <div className="text-center w-full py-8">Загрузка...</div>
-            ) : pastFlightsByDay.map((day, index) => (
-              <div key={index} className="day-column">
-                <div className="day-header">
-                  <div className="text-sm font-bold">{formatWeekday(day.date)}</div>
-                  <div className="text-xs text-muted-foreground">{formatDayMonth(day.date)}</div>
+            ) : displayedPast.length === 0 ? (
+              <div className="text-center w-full py-8">Нет прошлых рейсов</div>
+            ) : displayedPast.map((day, index) => (
+                <div key={index} className="day-column">
+                  <div className="day-header">
+                    <div className="text-sm font-bold">{formatWeekday(day.date)}</div>
+                    <div className="text-xs text-muted-foreground">{formatDayMonth(day.date)}</div>
+                  </div>
+                  {day.flights.length > 0 ? (
+                    <div className="space-y-2">
+                      {day.flights.map((flight) => (
+                        <FlightCard key={flight.id} flight={flight} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      Нет рейсов
+                    </div>
+                  )}
                 </div>
-                {day.flights.length > 0 ? (
-                  <div className="space-y-2">
-                    {day.flights.map((flight) => (
-                      <FlightCard key={flight.id} flight={flight} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground text-center py-4">
-                    Нет рейсов
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            )}
           </div>
         </TabsContent>
       </Tabs>
@@ -300,3 +385,4 @@ const SchedulePage = () => {
 };
 
 export default SchedulePage;
+
