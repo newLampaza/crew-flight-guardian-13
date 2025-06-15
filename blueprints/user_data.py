@@ -1,3 +1,4 @@
+
 from flask import Blueprint, jsonify, request
 import sqlite3
 import logging
@@ -254,65 +255,3 @@ def get_profile():
             conn.close()
             
     return _get_profile()
-
-@user_bp.route('/crew/flight-stats', methods=['GET'])
-def crew_flight_stats():
-    token_required = get_token_required()
-    
-    @token_required
-    def _crew_flight_stats(current_user):
-        try:
-            logger.info("[FlightStats] Запрос получен, обработка для пользователя: %s", current_user)
-            conn = get_db_connection()
-            employee_id = current_user['employee_id']
-            logger.info("[FlightStats] employee_id: %s", employee_id)
-
-            from datetime import datetime, timedelta
-            now = datetime.now()
-
-            week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            week_start_str = week_start.strftime('%Y-%m-%dT%H:%M:%S')
-            month_start_str = month_start.strftime('%Y-%m-%dT%H:%M:%S')
-
-            logger.info("[FlightStats] week_start: %s, month_start: %s", week_start_str, month_start_str)
-
-            weekly = conn.execute(
-                """
-                SELECT COUNT(*) as flights, COALESCE(SUM(duration),0) as hours
-                FROM Flights f
-                JOIN CrewMembers cm ON f.crew_id = cm.crew_id
-                WHERE cm.employee_id = ?
-                  AND f.departure_time >= ?
-                  AND f.status IN ('completed','scheduled')
-                """,
-                (employee_id, week_start_str)
-            ).fetchone()
-            logger.info("[FlightStats] Week Results: flights=%s, hours=%s", weekly['flights'], weekly['hours'])
-
-            monthly = conn.execute(
-                """
-                SELECT COUNT(*) as flights, COALESCE(SUM(duration),0) as hours
-                FROM Flights f
-                JOIN CrewMembers cm ON f.crew_id = cm.crew_id
-                WHERE cm.employee_id = ?
-                  AND f.departure_time >= ?
-                  AND f.status IN ('completed','scheduled')
-                """,
-                (employee_id, month_start_str)
-            ).fetchone()
-            logger.info("[FlightStats] Month Results: flights=%s, hours=%s", monthly['flights'], monthly['hours'])
-
-            result = {
-                "weeklyFlights": weekly['flights'],
-                "weeklyHours": int(weekly['hours'] // 60),
-                "monthlyFlights": monthly['flights'],
-                "monthlyHours": int(monthly['hours'] // 60)
-            }
-            logger.info("[FlightStats] Отправляем результат: %s", result)
-            conn.close()
-            return jsonify(result)
-        except Exception as e:
-            logger.error('[FlightStats] Ошибка: %s', e, exc_info=True)
-            return jsonify({'error': 'Failed to fetch flight stats'}), 500
-    return _crew_flight_stats()

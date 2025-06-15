@@ -1,11 +1,10 @@
+
 from logging.handlers import RotatingFileHandler
 import os
 from flask import Flask, send_from_directory, jsonify, request, Response
 from flask_cors import CORS
 import logging
 from datetime import timedelta
-import sqlite3
-from datetime import datetime
 
 # Import blueprints
 from blueprints.auth import auth_bp, AuthError, handle_auth_error
@@ -234,3 +233,6 @@ def serve_video(filename):
 
 # Test sessions storage for cognitive tests
 test_sessions = {}
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
