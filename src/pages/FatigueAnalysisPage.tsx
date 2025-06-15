@@ -385,12 +385,6 @@ const FatigueAnalysisPage = () => {
         </div>
       </div>
 
-      {/* Analytics Charts Section */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <AllAnalysesChart historyData={historyData} />
-        <FlightAnalysesChart historyData={historyData} />
-      </div>
-
       {/* Analysis Mode Dialog */}
       <Dialog open={analysisMode !== null} onOpenChange={(open) => !open && handleCloseDialog()}>
         <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
