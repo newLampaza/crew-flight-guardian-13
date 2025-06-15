@@ -30,6 +30,9 @@ const Dashboard = () => {
   const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
   const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
 
+  // Защита от неправильного типа crewData
+  const safeCrewData = Array.isArray(crewData) ? crewData : [];
+
   if (isAdmin()) {
     return <AdminHome />;
   }
@@ -124,7 +127,7 @@ const Dashboard = () => {
               <div className="text-center text-muted-foreground">Загрузка...</div>
             ) : (
               <div className="space-y-4">
-                {(crewData ?? []).map((member: any) => (
+                {safeCrewData.map((member: any) => (
                   <div 
                     key={member.id} 
                     className="flex justify-between items-center gap-4"
@@ -136,7 +139,7 @@ const Dashboard = () => {
                     <Badge className="ml-4">{member.role}</Badge>
                   </div>
                 ))}
-                {crewData?.length === 0 && (
+                {safeCrewData.length === 0 && (
                   <div className="text-muted-foreground text-center text-base">Нет данных по экипажу</div>
                 )}
               </div>
