@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -205,33 +204,35 @@ const FeedbackPage = () => {
                 </CardContent>
               </Card>
             ))
-          ) : feedbackHistory.length > 0 ? (
-            feedbackHistory.map((feedback) => (
-              <Card key={`${feedback.type}-${feedback.id}`}>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start flex-wrap gap-2">
-                    <CardTitle className="text-xl">
-                      {feedback.entityInfo}
-                    </CardTitle>
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star 
-                          key={i} 
-                          className={`h-4 w-4 ${i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} 
-                        />
-                      ))}
+          ) : feedbackHistory.filter(fb => fb.type === 'flight').length > 0 ? (
+            feedbackHistory
+              .filter(fb => fb.type === 'flight')
+              .map((feedback) => (
+                <Card key={`${feedback.type}-${feedback.id}`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start flex-wrap gap-2">
+                      <CardTitle className="text-xl">
+                        {feedback.entityInfo}
+                      </CardTitle>
+                      <div className="flex items-center gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star 
+                            key={i} 
+                            className={`h-4 w-4 ${i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} 
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <CardDescription className="flex items-center gap-2">
-                    <Clock className="h-3 w-3" />
-                    {format(new Date(feedback.date), "d MMMM yyyy", { locale: ru })}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm">{feedback.comments}</p>
-                </CardContent>
-              </Card>
-            ))
+                    <CardDescription className="flex items-center gap-2">
+                      <Clock className="h-3 w-3" />
+                      {format(new Date(feedback.date), "d MMMM yyyy", { locale: ru })}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm">{feedback.comments}</p>
+                  </CardContent>
+                </Card>
+              ))
           ) : (
             <div className="text-center py-12 bg-secondary/50 rounded-lg">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

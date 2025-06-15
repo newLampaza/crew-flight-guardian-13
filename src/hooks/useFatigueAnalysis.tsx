@@ -116,8 +116,8 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       setAnalysisResult(result);
       
       // Reload history to include new analysis
-      await loadHistory();
-      
+      await loadHistory(); // <= Это уже было, убедимся что результат подгружается
+
       setAnalysisProgress({ loading: false, message: "Анализ завершен", percent: 100 });
       
       if (onAnalysisComplete) {
