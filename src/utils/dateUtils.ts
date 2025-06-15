@@ -24,10 +24,8 @@ export const parseDatabaseDateTime = (dateString: string): Date => {
     isoString = dateString.replace(' ', 'T');
   }
   
-  // Add timezone if not present
-  if (!isoString.includes('Z') && !isoString.includes('+') && !isoString.includes('-', 10)) {
-    isoString += 'Z';
-  }
+  // Remove timezone suffix if present for local time handling
+  isoString = isoString.replace('Z', '').replace(/[+-]\d{2}:\d{2}$/, '');
   
   return new Date(isoString);
 };
@@ -49,7 +47,7 @@ export const formatDisplayDateTime = (dateString: string, locale: string = 'ru-R
 
 export const formatDisplayDate = (dateString: string, locale: string = 'ru-RU'): string => {
   try {
-    const date = new Date(dateString);
+    const date = parseDatabaseDateTime(dateString);
     return date.toLocaleDateString(locale, {
       year: 'numeric',
       month: '2-digit',
@@ -98,4 +96,19 @@ export const calculateDuration = (startDateTime: string, endDateTime: string): n
   } catch {
     return 0;
   }
+};
+
+export const addMinutesToDateTime = (dateString: string, minutes: number): string => {
+  try {
+    const date = parseDatabaseDateTime(dateString);
+    const newDate = new Date(date.getTime() + minutes * 60000);
+    return formatDateTimeForDatabase(newDate);
+  } catch {
+    return dateString;
+  }
+};
+
+export const getCooldownEnd = (minutes: number = 30): string => {
+  const futureTime = new Date(Date.now() + minutes * 60000);
+  return formatDateTimeForDatabase(futureTime);
 };

@@ -5,6 +5,11 @@ from datetime import datetime, timedelta
 import random
 from werkzeug.security import generate_password_hash
 
+# Import date utilities
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.date_utils import get_current_datetime, format_datetime_for_db, get_cooldown_end
+
 # Database path
 db_path = os.path.join('database.db')
 
@@ -15,12 +20,15 @@ cursor = conn.cursor()
 # Clear existing data (optional, comment out if not needed)
 tables = [
     'TestMistakes', 'CognitiveTests', 'MedicalChecks', 
-    'FatigueAnalysis', 'CrewMembers', 'Flights', 'Crews',
-    'Users', 'Employees'
+    'FatigueAnalysisFeedback', 'FlightFeedback', 'FatigueAnalysis', 
+    'CrewMembers', 'Flights', 'Crews', 'Users', 'Employees',
+    'FatigueVideos', 'TestSessions', 'TestImages'
 ]
 
 for table in tables:
     cursor.execute(f'DELETE FROM {table}')
+
+print("Очистка существующих данных завершена")
 
 # Add test employees
 employees_data = [
@@ -36,6 +44,8 @@ for emp in employees_data:
         VALUES (?, ?, ?, ?, ?, ?)
     ''', emp)
 
+print("Сотрудники добавлены")
+
 # Add users with hashed passwords
 for i in range(1, 5):
     username = f"user{i}"
@@ -46,6 +56,8 @@ for i in range(1, 5):
         INSERT INTO Users (employee_id, username, password, role)
         VALUES (?, ?, ?, ?)
     ''', (i, username, password, role))
+
+print("Пользователи добавлены")
 
 # Add test crews
 cursor.execute("INSERT INTO Crews (crew_name) VALUES ('Экипаж А')")
@@ -64,7 +76,9 @@ for crew in crew_members_data:
         VALUES (?, ?, ?)
     ''', crew)
 
-# Генерация большого набора тестовых рейсов
+print("Экипажи созданы")
+
+# Generate test flights with proper ISO datetime format
 airports = [
     ('SVO', 'Москва'), ('LED', 'Санкт-Петербург'), ('KZN', 'Казань'),
     ('OVB', 'Новосибирск'), ('AER', 'Сочи'), ('ROV', 'Ростов-на-Дону'),
@@ -73,7 +87,6 @@ airports = [
 aircrafts = ['Boeing 737', 'Airbus A320', 'Superjet 100', 'Boeing 777']
 conditions_list = ['Normal', 'Bad weather', 'Maintenance', 'Delayed']
 
-# Для 2 экипажей и 2 месяцев в обе стороны
 now = datetime.now()
 flight_id = 1
 
@@ -90,7 +103,6 @@ for crew_id in [1, 2]:
         conditions = random.choice(conditions_list)
         flight_number = f"SU{str(flight_id).zfill(4)}"
         
-        # Генерация video_path для рейса (только filename без пути)
         video_path = f"flight_{flight_id}_{from_airport}_{to_airport}.mp4"
         
         cursor.execute('''
@@ -101,8 +113,8 @@ for crew_id in [1, 2]:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             crew_id, flight_number, 
-            departure.strftime('%Y-%m-%dT%H:%M:%S'), 
-            arrival.strftime('%Y-%m-%dT%H:%M:%S'),
+            format_datetime_for_db(departure), 
+            format_datetime_for_db(arrival),
             from_airport, from_city,
             to_airport, to_city,
             aircraft, conditions, video_path
@@ -110,29 +122,7 @@ for crew_id in [1, 2]:
         
         flight_id += 1
 
-# Add some classic test flights for demo scenarios
-demo_flights = [
-    (1, 'SU1234', now + timedelta(days=1), now + timedelta(days=1, hours=3), 'SVO', 'Москва', 'LED', 'Санкт-Петербург', 'Boeing 737', 'Normal'),
-    (1, 'SU1235', now + timedelta(days=2), now + timedelta(days=2, hours=6), 'LED', 'Санкт-Петербург', 'SVO', 'Москва', 'Boeing 737', 'Normal'),
-    (2, 'SU1236', now + timedelta(days=3), now + timedelta(days=3, hours=4), 'SVO', 'Москва', 'KZN', 'Казань', 'Airbus A320', 'Normal')
-]
-
-for flight in demo_flights:
-    video_path = f"flight_{flight_id}_{flight[4]}_{flight[6]}.mp4"
-    cursor.execute('''
-        INSERT INTO Flights (
-            crew_id, flight_number, departure_time, arrival_time,
-            from_code, from_city, to_code, to_city,
-            aircraft, conditions, video_path
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        flight[0], flight[1], 
-        flight[2].strftime('%Y-%m-%dT%H:%M:%S'),
-        flight[3].strftime('%Y-%m-%dT%H:%M:%S'),
-        flight[4], flight[5], flight[6], flight[7], flight[8], flight[9], video_path
-    ))
-    flight_id += 1
+print(f"Создано {flight_id - 1} рейсов")
 
 # Add medical checks
 medical_checks_data = [
@@ -149,75 +139,121 @@ for check in medical_checks_data:
         VALUES (?, ?, ?, ?, ?, ?)
     ''', check)
 
-# Add cognitive tests
+print("Медицинские осмотры добавлены")
+
+# Add cognitive tests with proper datetime format and cooldown
+current_time = datetime.now()
 cognitive_tests_data = [
-    (1, datetime.now().isoformat(), 'attention', 95.5, 300, '{"questions": 20, "correct": 19}'),
-    (1, datetime.now().isoformat(), 'memory', 88.0, 240, '{"questions": 15, "correct": 13}'),
-    (2, datetime.now().isoformat(), 'reaction', 92.5, 180, '{"questions": 10, "correct": 9}')
+    (1, format_datetime_for_db(current_time - timedelta(hours=2)), 'attention', 95.5, 300, '{"questions": 20, "correct": 19}', get_cooldown_end(30)),
+    (1, format_datetime_for_db(current_time - timedelta(hours=3)), 'memory', 88.0, 240, '{"questions": 15, "correct": 13}', None),
+    (2, format_datetime_for_db(current_time - timedelta(hours=1)), 'reaction', 92.5, 180, '{"questions": 10, "correct": 9}', get_cooldown_end(45))
 ]
 
 for test in cognitive_tests_data:
     cursor.execute('''
         INSERT INTO CognitiveTests (
             employee_id, test_date, test_type,
-            score, duration, details
+            score, duration, details, cooldown_end
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', test)
 
-# Add test fatigue analysis data
-fatigue_levels = ['Low', 'Medium', 'High']
-now_iso = datetime.now().isoformat()
+print("Когнитивные тесты добавлены")
 
-# Добавляем анализы усталости для некоторых рейсов
+# Add fatigue analysis data with new structure
+fatigue_levels = ['Low', 'Medium', 'High']
+analysis_types = ['flight', 'realtime']
+
+# Flight analyses - for specific flights
 sample_flight_ids = [1, 2, 3, 5, 8, 10, 15, 20, 25, 30]
 for i, flight_id in enumerate(sample_flight_ids):
-    # Получаем данные рейса для video_path
     cursor.execute('SELECT from_code, to_code, video_path FROM Flights WHERE flight_id = ?', (flight_id,))
     flight_data = cursor.fetchone()
     
     if flight_data:
         from_code, to_code, video_path = flight_data
-        employee_id = random.choice([1, 2])  # Случайный пилот
+        employee_id = random.choice([1, 2])
         fatigue_level = random.choice(fatigue_levels)
         neural_score = random.uniform(0.1, 0.9)
-        feedback_score = random.randint(1, 5)
         
         cursor.execute('''
             INSERT INTO FatigueAnalysis (
-                employee_id, flight_id, fatigue_level, neural_network_score,
-                feedback_score, analysis_date, video_path, notes,
+                employee_id, flight_id, analysis_type, fatigue_level, 
+                neural_network_score, analysis_date, video_path, notes,
                 resolution, fps
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            employee_id, flight_id, fatigue_level, neural_score,
-            feedback_score, now_iso, video_path, 
+            employee_id, flight_id, 'flight', fatigue_level, neural_score,
+            format_datetime_for_db(current_time - timedelta(hours=i)), video_path,
             f'Анализ рейса {from_code}-{to_code}',
             '640x480', 30.0
         ))
 
-# Add test feedback data
-feedback_data = [
-    (1, 'flight', 1, 5, 'Отличный рейс, минимальная усталость'),
-    (1, 'cognitive_test', 1, 4, 'Тест был информативным'),
-    (2, 'fatigue_analysis', 1, 5, 'Точный анализ состояния'),
-    (2, 'flight', 2, 3, 'Средняя нагрузка во время полета'),
-    (1, 'cognitive_test', 2, 5, 'Хорошо структурированный тест')
+# Realtime analyses - not tied to flights
+for i in range(10):
+    employee_id = random.choice([1, 2])
+    fatigue_level = random.choice(fatigue_levels)
+    neural_score = random.uniform(0.1, 0.9)
+    video_path = f"realtime_analysis_{i+1}.mp4"
+    
+    cursor.execute('''
+        INSERT INTO FatigueAnalysis (
+            employee_id, flight_id, analysis_type, fatigue_level, 
+            neural_network_score, analysis_date, video_path, notes,
+            resolution, fps
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        employee_id, None, 'realtime', fatigue_level, neural_score,
+        format_datetime_for_db(current_time - timedelta(minutes=i*30)), video_path,
+        f'Анализ усталости в реальном времени #{i+1}',
+        '640x480', 30.0
+    ))
+
+print("Анализы усталости добавлены")
+
+# Add separate feedback for flights and fatigue analyses
+# Flight feedback
+flight_feedback_data = [
+    (1, 1, 5, 'Отличный рейс, минимальная усталость'),
+    (2, 2, 3, 'Средняя нагрузка во время полета'),
+    (1, 3, 4, 'Хороший рейс, но была турбулентность'),
+    (2, 5, 5, 'Комфортный полет'),
 ]
 
-for feedback in feedback_data:
+for feedback in flight_feedback_data:
     cursor.execute('''
-        INSERT INTO Feedback (
-            employee_id, entity_type, entity_id,
-            rating, comments
+        INSERT INTO FlightFeedback (
+            employee_id, flight_id, rating, comments
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?)
     ''', feedback)
+
+# Fatigue analysis feedback
+fatigue_feedback_data = [
+    (1, 1, 5, 'Анализ точно определил уровень усталости'),
+    (1, 2, 4, 'Хороший анализ, полезная информация'),
+    (2, 3, 5, 'Очень точный анализ состояния'),
+    (2, 4, 3, 'Анализ был не совсем точным'),
+]
+
+for feedback in fatigue_feedback_data:
+    cursor.execute('''
+        INSERT INTO FatigueAnalysisFeedback (
+            employee_id, analysis_id, rating, comments
+        )
+        VALUES (?, ?, ?, ?)
+    ''', feedback)
+
+print("Отзывы добавлены")
 
 # Commit changes and close connection
 conn.commit()
 conn.close()
 
-print("Тестовые данные успешно добавлены в базу данных!")
-print("Добавлены video_path для всех рейсов и тестовые данные анализа усталости.")
-print("Примеры video_path: flight_1_SVO_LED.mp4, flight_2_KZN_OVB.mp4, и т.д.")
+print("Тестовые данные успешно добавлены в обновленную базу данных!")
+print("Структура БД включает:")
+print("- Правильные форматы дат (ISO 8601)")
+print("- Раздельные таблицы отзывов для рейсов и анализов усталости")
+print("- Анализы усталости с типами 'flight' и 'realtime'")
+print("- Индексы для оптимизации производительности")
+print("- Триггеры для автоматического расчета длительности рейсов")

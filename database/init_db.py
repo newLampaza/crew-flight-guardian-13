@@ -9,25 +9,36 @@ db_path = os.path.join('database.db')
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 
-# Create tables with proper schemas
+# Drop existing tables to recreate from scratch
+tables_to_drop = [
+    'TestMistakes', 'CognitiveTests', 'MedicalChecks', 
+    'FatigueAnalysisFeedback', 'FlightFeedback', 'FatigueAnalysis', 
+    'CrewMembers', 'Flights', 'Crews', 'Users', 'Employees',
+    'FatigueVideos', 'TestSessions', 'TestImages'
+]
+
+for table in tables_to_drop:
+    cursor.execute(f'DROP TABLE IF EXISTS {table}')
+
+# Create tables with proper schemas and ISO date format
 
 # Users table with enhanced authentication fields
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS Users (
+CREATE TABLE Users (
     user_id INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id INTEGER UNIQUE,
     username TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
     role TEXT CHECK(role IN ('pilot', 'admin', 'medical')) NOT NULL,
     last_login TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (employee_id) REFERENCES Employees (employee_id)
 )
 ''')
 
 # Employees table with extended fields
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS Employees (
+CREATE TABLE Employees (
     employee_id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     role TEXT NOT NULL,
@@ -41,7 +52,7 @@ CREATE TABLE IF NOT EXISTS Employees (
 
 # Crews table
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS Crews (
+CREATE TABLE Crews (
     crew_id INTEGER PRIMARY KEY AUTOINCREMENT,
     crew_name TEXT NOT NULL,
     status TEXT DEFAULT 'active'
@@ -50,11 +61,11 @@ CREATE TABLE IF NOT EXISTS Crews (
 
 # Crew Members relationship table
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS CrewMembers (
+CREATE TABLE CrewMembers (
     crew_id INTEGER,
     employee_id INTEGER,
     role TEXT NOT NULL,
-    join_date TEXT DEFAULT CURRENT_TIMESTAMP,
+    join_date TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (crew_id) REFERENCES Crews (crew_id),
     FOREIGN KEY (employee_id) REFERENCES Employees (employee_id),
     PRIMARY KEY (crew_id, employee_id)
@@ -63,7 +74,7 @@ CREATE TABLE IF NOT EXISTS CrewMembers (
 
 # Flights table with extended tracking
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS Flights (
+CREATE TABLE Flights (
     flight_id INTEGER PRIMARY KEY AUTOINCREMENT,
     crew_id INTEGER,
     flight_number TEXT,
@@ -82,9 +93,9 @@ CREATE TABLE IF NOT EXISTS Flights (
 )
 ''')
 
-# Add missing FatigueVideos table
+# Fatigue Videos table
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS FatigueVideos (
+CREATE TABLE FatigueVideos (
     video_id INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id INTEGER NOT NULL,
     video_path TEXT NOT NULL,
@@ -97,16 +108,16 @@ CREATE TABLE IF NOT EXISTS FatigueVideos (
 )
 ''')
 
-# Fatigue Analysis table with detailed metrics - UPDATED CHECK constraint to include 'Saved'
+# Fatigue Analysis table - updated with analysis_type field
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS FatigueAnalysis (
+CREATE TABLE FatigueAnalysis (
     analysis_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    employee_id INTEGER,
+    employee_id INTEGER NOT NULL,
     flight_id INTEGER,
-    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High', 'Unknown', 'Saved')),
+    analysis_type TEXT CHECK(analysis_type IN ('flight', 'realtime')) NOT NULL DEFAULT 'realtime',
+    fatigue_level TEXT CHECK(fatigue_level IN ('Low', 'Medium', 'High', 'Unknown')) DEFAULT 'Unknown',
     neural_network_score REAL,
-    feedback_score REAL,
-    analysis_date TEXT,
+    analysis_date TEXT NOT NULL,
     video_path TEXT,
     notes TEXT,
     resolution TEXT,
@@ -116,9 +127,36 @@ CREATE TABLE IF NOT EXISTS FatigueAnalysis (
 )
 ''')
 
+# Separate feedback tables for different entities
+cursor.execute('''
+CREATE TABLE FlightFeedback (
+    feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL,
+    flight_id INTEGER NOT NULL,
+    rating INTEGER CHECK(rating BETWEEN 1 AND 5) NOT NULL,
+    comments TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (employee_id) REFERENCES Employees (employee_id),
+    FOREIGN KEY (flight_id) REFERENCES Flights (flight_id)
+)
+''')
+
+cursor.execute('''
+CREATE TABLE FatigueAnalysisFeedback (
+    feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL,
+    analysis_id INTEGER NOT NULL,
+    rating INTEGER CHECK(rating BETWEEN 1 AND 5) NOT NULL,
+    comments TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (employee_id) REFERENCES Employees (employee_id),
+    FOREIGN KEY (analysis_id) REFERENCES FatigueAnalysis (analysis_id)
+)
+''')
+
 # Medical Checks table
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS MedicalChecks (
+CREATE TABLE MedicalChecks (
     check_id INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id INTEGER NOT NULL,
     check_date TEXT NOT NULL,
@@ -130,9 +168,9 @@ CREATE TABLE IF NOT EXISTS MedicalChecks (
 )
 ''')
 
-# Cognitive Tests table with cooldown_end column added
+# Cognitive Tests table with cooldown_end column
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS CognitiveTests (
+CREATE TABLE CognitiveTests (
     test_id INTEGER PRIMARY KEY AUTOINCREMENT,
     employee_id INTEGER NOT NULL,
     test_date TEXT NOT NULL,
@@ -147,7 +185,7 @@ CREATE TABLE IF NOT EXISTS CognitiveTests (
 
 # Test Mistakes tracking
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS TestMistakes (
+CREATE TABLE TestMistakes (
     mistake_id INTEGER PRIMARY KEY AUTOINCREMENT,
     test_id INTEGER NOT NULL,
     question TEXT NOT NULL,
@@ -159,7 +197,7 @@ CREATE TABLE IF NOT EXISTS TestMistakes (
 
 # Test Sessions for managing ongoing tests
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS TestSessions (
+CREATE TABLE TestSessions (
     session_id TEXT PRIMARY KEY,
     employee_id INTEGER NOT NULL,
     test_type TEXT NOT NULL,
@@ -169,40 +207,37 @@ CREATE TABLE IF NOT EXISTS TestSessions (
 )
 ''')
 
-# Feedback table for storing user feedback
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS Feedback (
-    feedback_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    employee_id INTEGER NOT NULL,
-    entity_type TEXT CHECK(entity_type IN ('flight', 'cognitive_test', 'fatigue_analysis')) NOT NULL,
-    entity_id INTEGER NOT NULL,
-    rating INTEGER CHECK(rating BETWEEN 1 AND 5) NOT NULL,
-    comments TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (employee_id) REFERENCES Employees (employee_id)
-)
-''')
-
 # Test Images for cognitive tests
 cursor.execute('''
-CREATE TABLE IF NOT EXISTS TestImages (
+CREATE TABLE TestImages (
     image_id INTEGER PRIMARY KEY AUTOINCREMENT,
     category TEXT NOT NULL,
     image_path TEXT NOT NULL,
     correct_path TEXT,
     difficulty INTEGER DEFAULT 1,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT (datetime('now'))
 )
 ''')
 
+# Create indexes for better performance
+cursor.execute('CREATE INDEX idx_flights_crew_id ON Flights(crew_id)')
+cursor.execute('CREATE INDEX idx_flights_departure_time ON Flights(departure_time)')
+cursor.execute('CREATE INDEX idx_fatigue_analysis_employee_id ON FatigueAnalysis(employee_id)')
+cursor.execute('CREATE INDEX idx_fatigue_analysis_flight_id ON FatigueAnalysis(flight_id)')
+cursor.execute('CREATE INDEX idx_fatigue_analysis_date ON FatigueAnalysis(analysis_date)')
+cursor.execute('CREATE INDEX idx_cognitive_tests_employee_id ON CognitiveTests(employee_id)')
+cursor.execute('CREATE INDEX idx_cognitive_tests_date ON CognitiveTests(test_date)')
+cursor.execute('CREATE INDEX idx_flight_feedback_flight_id ON FlightFeedback(flight_id)')
+cursor.execute('CREATE INDEX idx_fatigue_feedback_analysis_id ON FatigueAnalysisFeedback(analysis_id)')
+
 # Create trigger for flight duration calculation
 cursor.execute('''
-CREATE TRIGGER IF NOT EXISTS CalculateFlightDuration 
+CREATE TRIGGER CalculateFlightDuration 
 AFTER INSERT ON Flights
 BEGIN
     UPDATE Flights 
     SET duration = CAST(
-        (strftime('%s', arrival_time) - strftime('%s', departure_time)) / 60 
+        (julianday(arrival_time) - julianday(departure_time)) * 24 * 60 
         AS INTEGER)
     WHERE flight_id = NEW.flight_id;
 END;
@@ -212,4 +247,4 @@ END;
 conn.commit()
 conn.close()
 
-print("Database schema successfully initialized!")
+print("Database schema successfully recreated with proper structure!")
