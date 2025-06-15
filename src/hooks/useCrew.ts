@@ -1,7 +1,5 @@
 
-
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 
 export interface CrewMember {
@@ -16,21 +14,62 @@ export function useCrew() {
   return useQuery<CrewMember[]>({
     queryKey: ["crewData", user?.id],
     queryFn: async () => {
-      console.log('Fetching crew data...');
-      const { data } = await axios.get("/api/crew");
-      console.log('Received crew data:', data, 'type:', typeof data, 'isArray:', Array.isArray(data));
+      console.log('Fetching crew data for user:', user?.id);
       
-      // Убеждаемся, что возвращаем массив
-      if (!Array.isArray(data)) {
-        console.warn('Crew data is not an array, returning empty array');
+      try {
+        // Используем fetch вместо axios для более простой отладки
+        const response = await fetch('/api/crew', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-User-Id': user?.id?.toString() || '',
+          },
+        });
+        
+        console.log('Crew API response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Raw crew API response:', data);
+        console.log('Response type:', typeof data);
+        console.log('Is array:', Array.isArray(data));
+        
+        // Проверяем различные форматы ответа
+        if (Array.isArray(data)) {
+          console.log('Data is already an array:', data);
+          return data;
+        }
+        
+        // Если данные обернуты в объект
+        if (data && typeof data === 'object') {
+          if (Array.isArray(data.crew)) {
+            console.log('Found crew array in data.crew:', data.crew);
+            return data.crew;
+          }
+          if (Array.isArray(data.data)) {
+            console.log('Found crew array in data.data:', data.data);
+            return data.data;
+          }
+          if (Array.isArray(data.members)) {
+            console.log('Found crew array in data.members:', data.members);
+            return data.members;
+          }
+        }
+        
+        console.warn('Crew data is not an array format:', data);
+        console.warn('Returning empty array as fallback');
         return [];
+        
+      } catch (error) {
+        console.error('Error fetching crew data:', error);
+        throw error;
       }
-      
-      return data;
     },
-    enabled: isAuthenticated && !!user, // Запрос выполняется только если пользователь аутентифицирован
+    enabled: isAuthenticated && !!user?.id,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
 }
-

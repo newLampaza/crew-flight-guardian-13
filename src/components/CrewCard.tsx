@@ -11,7 +11,12 @@ interface CrewCardProps {
 }
 
 const CrewCard = ({ crewData, isLoading, error }: CrewCardProps) => {
-  console.log('CrewCard received crewData:', crewData, 'type:', typeof crewData, 'isArray:', Array.isArray(crewData));
+  console.log('CrewCard received crewData:', crewData);
+  console.log('Type:', typeof crewData);
+  console.log('Is array:', Array.isArray(crewData));
+  console.log('Length:', crewData?.length);
+  console.log('Is loading:', isLoading);
+  console.log('Error:', error);
   
   return (
     <Card className="hover-card">
@@ -30,13 +35,16 @@ const CrewCard = ({ crewData, isLoading, error }: CrewCardProps) => {
         {isLoading ? (
           <div className="py-8 text-center text-muted-foreground">Загрузка...</div>
         ) : error ? (
-          <div className="py-8 text-center text-destructive">
-            Ошибка загрузки экипажа
+          <div className="py-8 text-center">
+            <div className="text-destructive mb-2">Ошибка загрузки экипажа</div>
+            <div className="text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : 'Неизвестная ошибка'}
+            </div>
           </div>
         ) : crewData && Array.isArray(crewData) && crewData.length > 0 ? (
           <div className="space-y-4">
-            {crewData.map((member) => (
-              <div key={member.id} className="flex justify-between items-center gap-4">
+            {crewData.map((member, index) => (
+              <div key={member.id || index} className="flex justify-between items-center gap-4">
                 <div className="flex-grow truncate">
                   <span className="block text-base font-medium truncate">{member.name}</span>
                   <span className="block text-sm text-muted-foreground truncate">{member.position}</span>
@@ -46,7 +54,12 @@ const CrewCard = ({ crewData, isLoading, error }: CrewCardProps) => {
           </div>
         ) : (
           <div className="py-8 text-center text-muted-foreground">
-            Нет информации об экипаже
+            <div>Нет информации об экипаже</div>
+            {crewData !== undefined && (
+              <div className="text-xs mt-2 opacity-60">
+                Получены данные: {JSON.stringify(crewData)}
+              </div>
+            )}
           </div>
         )}
       </CardContent>

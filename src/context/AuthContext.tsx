@@ -36,13 +36,28 @@ const api = axios.create({
   }
 });
 
-// Add request interceptor for JWT
+// Add request interceptor for JWT and User ID
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('fatigue-guard-token');
+    const user = localStorage.getItem('fatigue-guard-user');
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    if (user) {
+      try {
+        const parsedUser = JSON.parse(user);
+        if (parsedUser?.id) {
+          config.headers['X-User-Id'] = parsedUser.id;
+          console.log('Added X-User-Id header:', parsedUser.id);
+        }
+      } catch (error) {
+        console.error('Error parsing user data for header:', error);
+      }
+    }
+    
     return config;
   },
   (error) => {
