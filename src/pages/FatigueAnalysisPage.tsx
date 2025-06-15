@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
-import { Brain, Activity } from "lucide-react";
+import { Brain, Activity, RefreshCw } from "lucide-react";
 
 // Import our components
 import { VideoRecorder } from "@/components/fatigue-analysis/VideoRecorder";
@@ -154,6 +154,7 @@ function HistoryAnalysisRow({
 const FatigueAnalysisPage = () => {
   const [analysisMode, setAnalysisMode] = useState<'realtime' | 'flight' | null>(null);
   const [feedbackScore, setFeedbackScore] = useState(3);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Загружаем реальные данные о рейсах
   const { data: flights = [], isLoading: flightsLoading } = useFlights();
@@ -197,10 +198,38 @@ const FatigueAnalysisPage = () => {
     onRecordingComplete: submitRecording 
   });
 
-  // Load history on mount
+  // Load history on mount and set up auto-refresh
   useEffect(() => {
     loadHistory();
-  }, []);
+    
+    // Автоматическое обновление каждые 30 секунд
+    const interval = setInterval(() => {
+      console.log("Auto-refreshing history...");
+      loadHistory();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [loadHistory]);
+
+  // Manual refresh function
+  const handleManualRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await loadHistory();
+      toast({
+        title: "Обновлено",
+        description: "История анализов обновлена"
+      });
+    } catch (error) {
+      toast({
+        title: "Ошибка",
+        description: "Не удалось обновить историю",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [loadHistory]);
 
   // Handle feedback submission
   const handleSubmitFeedback = async () => {
@@ -274,18 +303,29 @@ const FatigueAnalysisPage = () => {
         <div className="space-y-6">
           <FatigueStatusCard fatigueLevel={currentFatigueLevel} />
 
-          {/* Improved History Card */}
+          {/* Improved History Card with Refresh Button */}
           <Card className="transition-all duration-200 overflow-hidden bg-[#101828] border border-[#222f44] rounded-2xl">
             <CardContent className="p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <Activity className="h-5 w-5 text-primary" />
-                <h3 className="font-semibold text-lg text-white">История анализов</h3>
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-lg text-white">История анализов</h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
               <div className="space-y-0">
                 {historyData.length > 0 ? (
                   historyData.slice(0, 6).map((item) => (
                     <HistoryAnalysisRow
-                      key={`history-${item.analysis_id}`}
+                      key={`history-${item.analysis_id}-${item.analysis_date}`}
                       analysis_id={item.analysis_id}
                       analysis_type={item.analysis_type}
                       analysis_date={item.analysis_date}

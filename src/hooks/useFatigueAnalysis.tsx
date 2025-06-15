@@ -58,8 +58,11 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       const response = await api.get("/api/fatigue/history");
       console.log("History response:", response.data);
       
+      const rawData = response.data || [];
+      console.log("Raw data length:", rawData.length);
+      
       // Принудительная сортировка по дате (новые сверху) и analysis_id
-      const sortedData = (response.data || []).sort((a: HistoryData, b: HistoryData) => {
+      const sortedData = rawData.sort((a: HistoryData, b: HistoryData) => {
         const dateA = new Date(a.analysis_date).getTime();
         const dateB = new Date(b.analysis_date).getTime();
         
@@ -72,7 +75,9 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
         return b.analysis_id - a.analysis_id;
       });
       
-      console.log("Sorted history data:", sortedData);
+      console.log("Sorted history data length:", sortedData.length);
+      console.log("First 3 items:", sortedData.slice(0, 3));
+      
       setHistoryData(sortedData);
     } catch (error) {
       console.error("Error loading history:", error);
