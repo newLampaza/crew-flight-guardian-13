@@ -1,0 +1,4 @@
+crew_id,employee_id,role,join_date
+1,1,commander,2025-06-15 14:50:26
+1,2,co-pilot,2025-06-15 14:50:26
+2,2,commander,2025-06-15 14:50:26

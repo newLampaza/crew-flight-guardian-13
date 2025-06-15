@@ -1,0 +1,5 @@
+employee_id,name,role,position,contact_info,employment_date,image_url,status
+1,Иванов Иван,pilot,Командир воздушного судна,ivanov@example.com,2020-01-15,https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=400&auto=format&fit=crop&q=60,active
+2,Петров Петр,pilot,Второй пилот,petrov@example.com,2019-05-20,https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=60,active
+3,Сидорова Анна,medical,Врач,sidorova@example.com,2021-03-10,https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=60,active
+4,Кузнецова Мария,admin,Администратор,kuznetsova@example.com,2018-07-22,https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=60,active

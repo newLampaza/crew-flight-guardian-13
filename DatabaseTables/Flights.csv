@@ -1,0 +1,123 @@
+flight_id,crew_id,flight_number,departure_time,arrival_time,duration,from_code,from_city,to_code,to_city,aircraft,conditions,status,video_path
+1,1,SU0001,2025-05-16T08:00:00,2025-05-16T09:20:00,79,AER,Сочи,KZN,Казань,Boeing 777,Normal,scheduled,flight_1_AER_KZN.mp4
+2,1,SU0002,2025-05-17T08:00:00,2025-05-17T10:25:00,145,LED,Санкт-Петербург,AER,Сочи,Airbus A320,Delayed,scheduled,flight_2_LED_AER.mp4
+3,1,SU0003,2025-05-18T15:00:00,2025-05-18T17:50:00,169,OVB,Новосибирск,SVO,Москва,Boeing 737,Normal,scheduled,flight_3_OVB_SVO.mp4
+4,1,SU0004,2025-05-19T08:00:00,2025-05-19T10:00:00,119,LED,Санкт-Петербург,KZN,Казань,Boeing 737,Maintenance,scheduled,flight_4_LED_KZN.mp4
+5,1,SU0005,2025-05-20T08:00:00,2025-05-20T10:50:00,169,AER,Сочи,ROV,Ростов-на-Дону,Airbus A320,Maintenance,scheduled,flight_5_AER_ROV.mp4
+6,1,SU0006,2025-05-21T08:00:00,2025-05-21T10:50:00,169,SVO,Москва,AER,Сочи,Airbus A320,Maintenance,scheduled,flight_6_SVO_AER.mp4
+7,1,SU0007,2025-05-22T06:00:00,2025-05-22T08:50:00,169,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Superjet 100,Maintenance,scheduled,flight_7_ROV_LED.mp4
+8,1,SU0008,2025-05-23T08:00:00,2025-05-23T10:50:00,169,AER,Сочи,SVO,Москва,Superjet 100,Normal,scheduled,flight_8_AER_SVO.mp4
+9,1,SU0009,2025-05-24T08:00:00,2025-05-24T10:25:00,145,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Boeing 777,Maintenance,scheduled,flight_9_ROV_LED.mp4
+10,1,SU0010,2025-05-25T15:00:00,2025-05-25T16:40:00,100,KZN,Казань,SVO,Москва,Boeing 777,Maintenance,scheduled,flight_10_KZN_SVO.mp4
+11,1,SU0011,2025-05-26T06:00:00,2025-05-26T08:25:00,145,OVB,Новосибирск,SVX,Екатеринбург,Boeing 737,Bad weather,scheduled,flight_11_OVB_SVX.mp4
+12,1,SU0012,2025-05-27T21:00:00,2025-05-27T22:40:00,100,AER,Сочи,LED,Санкт-Петербург,Airbus A320,Maintenance,scheduled,flight_12_AER_LED.mp4
+13,1,SU0013,2025-05-28T21:00:00,2025-05-28T23:00:00,120,LED,Санкт-Петербург,OVB,Новосибирск,Boeing 737,Delayed,scheduled,flight_13_LED_OVB.mp4
+14,1,SU0014,2025-05-29T12:00:00,2025-05-29T13:20:00,79,SVX,Екатеринбург,LED,Санкт-Петербург,Superjet 100,Maintenance,scheduled,flight_14_SVX_LED.mp4
+15,1,SU0015,2025-05-30T08:00:00,2025-05-30T09:40:00,100,AER,Сочи,LED,Санкт-Петербург,Boeing 777,Delayed,scheduled,flight_15_AER_LED.mp4
+16,1,SU0016,2025-05-31T12:00:00,2025-05-31T13:20:00,79,AER,Сочи,ROV,Ростов-на-Дону,Superjet 100,Delayed,scheduled,flight_16_AER_ROV.mp4
+17,1,SU0017,2025-06-01T08:00:00,2025-06-01T10:50:00,169,KZN,Казань,OVB,Новосибирск,Superjet 100,Normal,scheduled,flight_17_KZN_OVB.mp4
+18,1,SU0018,2025-06-02T15:00:00,2025-06-02T17:00:00,120,KZN,Казань,SVX,Екатеринбург,Airbus A320,Bad weather,scheduled,flight_18_KZN_SVX.mp4
+19,1,SU0019,2025-06-03T18:00:00,2025-06-03T19:40:00,100,OVB,Новосибирск,AER,Сочи,Boeing 737,Delayed,scheduled,flight_19_OVB_AER.mp4
+20,1,SU0020,2025-06-04T08:00:00,2025-06-04T09:20:00,79,AER,Сочи,OVB,Новосибирск,Boeing 737,Bad weather,scheduled,flight_20_AER_OVB.mp4
+21,1,SU0021,2025-06-05T21:00:00,2025-06-05T23:25:00,145,ROV,Ростов-на-Дону,SVX,Екатеринбург,Boeing 777,Maintenance,scheduled,flight_21_ROV_SVX.mp4
+22,1,SU0022,2025-06-06T12:00:00,2025-06-06T14:25:00,145,AER,Сочи,KZN,Казань,Boeing 777,Normal,scheduled,flight_22_AER_KZN.mp4
+23,1,SU0023,2025-06-07T06:00:00,2025-06-07T07:20:00,79,OVB,Новосибирск,ROV,Ростов-на-Дону,Boeing 737,Delayed,scheduled,flight_23_OVB_ROV.mp4
+24,1,SU0024,2025-06-08T08:00:00,2025-06-08T09:20:00,79,SVX,Екатеринбург,SVO,Москва,Boeing 777,Normal,scheduled,flight_24_SVX_SVO.mp4
+25,1,SU0025,2025-06-09T12:00:00,2025-06-09T14:00:00,120,SVX,Екатеринбург,AER,Сочи,Boeing 737,Delayed,scheduled,flight_25_SVX_AER.mp4
+26,1,SU0026,2025-06-10T12:00:00,2025-06-10T14:00:00,120,LED,Санкт-Петербург,KZN,Казань,Boeing 777,Normal,scheduled,flight_26_LED_KZN.mp4
+27,1,SU0027,2025-06-11T06:00:00,2025-06-11T08:25:00,145,SVX,Екатеринбург,ROV,Ростов-на-Дону,Superjet 100,Normal,scheduled,flight_27_SVX_ROV.mp4
+28,1,SU0028,2025-06-12T15:00:00,2025-06-12T17:50:00,169,ROV,Ростов-на-Дону,SVO,Москва,Airbus A320,Delayed,scheduled,flight_28_ROV_SVO.mp4
+29,1,SU0029,2025-06-13T08:00:00,2025-06-13T09:40:00,100,SVX,Екатеринбург,AER,Сочи,Boeing 777,Normal,scheduled,flight_29_SVX_AER.mp4
+30,1,SU0030,2025-06-14T15:00:00,2025-06-14T17:25:00,145,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Boeing 777,Delayed,scheduled,flight_30_ROV_LED.mp4
+31,1,SU0031,2025-06-15T18:00:00,2025-06-15T20:25:00,145,AER,Сочи,OVB,Новосибирск,Superjet 100,Bad weather,scheduled,flight_31_AER_OVB.mp4
+32,1,SU0032,2025-06-16T21:00:00,2025-06-16T23:50:00,169,ROV,Ростов-на-Дону,SVX,Екатеринбург,Boeing 737,Delayed,scheduled,flight_32_ROV_SVX.mp4
+33,1,SU0033,2025-06-17T12:00:00,2025-06-17T13:20:00,79,OVB,Новосибирск,ROV,Ростов-на-Дону,Boeing 777,Maintenance,scheduled,flight_33_OVB_ROV.mp4
+34,1,SU0034,2025-06-18T06:00:00,2025-06-18T08:50:00,169,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Boeing 777,Maintenance,scheduled,flight_34_ROV_LED.mp4
+35,1,SU0035,2025-06-19T06:00:00,2025-06-19T07:40:00,100,AER,Сочи,SVO,Москва,Superjet 100,Maintenance,scheduled,flight_35_AER_SVO.mp4
+36,1,SU0036,2025-06-20T12:00:00,2025-06-20T13:40:00,100,AER,Сочи,SVX,Екатеринбург,Boeing 777,Maintenance,scheduled,flight_36_AER_SVX.mp4
+37,1,SU0037,2025-06-21T06:00:00,2025-06-21T07:20:00,79,AER,Сочи,ROV,Ростов-на-Дону,Boeing 777,Normal,scheduled,flight_37_AER_ROV.mp4
+38,1,SU0038,2025-06-22T18:00:00,2025-06-22T19:20:00,79,OVB,Новосибирск,SVO,Москва,Airbus A320,Normal,scheduled,flight_38_OVB_SVO.mp4
+39,1,SU0039,2025-06-23T21:00:00,2025-06-23T22:20:00,79,LED,Санкт-Петербург,ROV,Ростов-на-Дону,Boeing 737,Normal,scheduled,flight_39_LED_ROV.mp4
+40,1,SU0040,2025-06-24T06:00:00,2025-06-24T07:40:00,100,KZN,Казань,AER,Сочи,Airbus A320,Maintenance,scheduled,flight_40_KZN_AER.mp4
+41,1,SU0041,2025-06-25T08:00:00,2025-06-25T10:00:00,119,SVO,Москва,AER,Сочи,Boeing 737,Delayed,scheduled,flight_41_SVO_AER.mp4
+42,1,SU0042,2025-06-26T18:00:00,2025-06-26T20:00:00,120,AER,Сочи,LED,Санкт-Петербург,Superjet 100,Normal,scheduled,flight_42_AER_LED.mp4
+43,1,SU0043,2025-06-27T15:00:00,2025-06-27T17:00:00,120,AER,Сочи,LED,Санкт-Петербург,Airbus A320,Normal,scheduled,flight_43_AER_LED.mp4
+44,1,SU0044,2025-06-28T12:00:00,2025-06-28T14:00:00,120,LED,Санкт-Петербург,OVB,Новосибирск,Superjet 100,Bad weather,scheduled,flight_44_LED_OVB.mp4
+45,1,SU0045,2025-06-29T12:00:00,2025-06-29T14:00:00,120,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Superjet 100,Bad weather,scheduled,flight_45_ROV_LED.mp4
+46,1,SU0046,2025-06-30T06:00:00,2025-06-30T08:50:00,169,AER,Сочи,SVO,Москва,Boeing 777,Delayed,scheduled,flight_46_AER_SVO.mp4
+47,1,SU0047,2025-07-01T08:00:00,2025-07-01T10:00:00,119,KZN,Казань,OVB,Новосибирск,Boeing 737,Delayed,scheduled,flight_47_KZN_OVB.mp4
+48,1,SU0048,2025-07-02T21:00:00,2025-07-02T23:00:00,120,KZN,Казань,ROV,Ростов-на-Дону,Airbus A320,Normal,scheduled,flight_48_KZN_ROV.mp4
+49,1,SU0049,2025-07-03T08:00:00,2025-07-03T10:50:00,169,AER,Сочи,SVX,Екатеринбург,Boeing 737,Normal,scheduled,flight_49_AER_SVX.mp4
+50,1,SU0050,2025-07-04T06:00:00,2025-07-04T07:20:00,79,KZN,Казань,OVB,Новосибирск,Boeing 777,Delayed,scheduled,flight_50_KZN_OVB.mp4
+51,1,SU0051,2025-07-05T21:00:00,2025-07-05T23:50:00,169,SVX,Екатеринбург,OVB,Новосибирск,Airbus A320,Delayed,scheduled,flight_51_SVX_OVB.mp4
+52,1,SU0052,2025-07-06T12:00:00,2025-07-06T13:40:00,100,AER,Сочи,SVX,Екатеринбург,Airbus A320,Normal,scheduled,flight_52_AER_SVX.mp4
+53,1,SU0053,2025-07-07T18:00:00,2025-07-07T20:25:00,145,ROV,Ростов-на-Дону,KZN,Казань,Boeing 777,Delayed,scheduled,flight_53_ROV_KZN.mp4
+54,1,SU0054,2025-07-08T12:00:00,2025-07-08T14:25:00,145,SVX,Екатеринбург,SVO,Москва,Boeing 737,Delayed,scheduled,flight_54_SVX_SVO.mp4
+55,1,SU0055,2025-07-09T08:00:00,2025-07-09T09:40:00,100,ROV,Ростов-на-Дону,KZN,Казань,Superjet 100,Delayed,scheduled,flight_55_ROV_KZN.mp4
+56,1,SU0056,2025-07-10T06:00:00,2025-07-10T08:00:00,120,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Boeing 737,Bad weather,scheduled,flight_56_ROV_LED.mp4
+57,1,SU0057,2025-07-11T06:00:00,2025-07-11T08:25:00,145,OVB,Новосибирск,AER,Сочи,Boeing 777,Bad weather,scheduled,flight_57_OVB_AER.mp4
+58,1,SU0058,2025-07-12T21:00:00,2025-07-12T22:40:00,100,AER,Сочи,SVX,Екатеринбург,Airbus A320,Delayed,scheduled,flight_58_AER_SVX.mp4
+59,1,SU0059,2025-07-13T08:00:00,2025-07-13T10:50:00,169,KZN,Казань,AER,Сочи,Boeing 777,Maintenance,scheduled,flight_59_KZN_AER.mp4
+60,1,SU0060,2025-07-14T12:00:00,2025-07-14T13:20:00,79,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Airbus A320,Maintenance,scheduled,flight_60_ROV_LED.mp4
+61,1,SU0061,2025-07-15T15:00:00,2025-07-15T17:50:00,169,LED,Санкт-Петербург,OVB,Новосибирск,Boeing 737,Delayed,scheduled,flight_61_LED_OVB.mp4
+62,2,SU0062,2025-05-16T06:00:00,2025-05-16T08:25:00,145,ROV,Ростов-на-Дону,OVB,Новосибирск,Boeing 737,Delayed,scheduled,flight_62_ROV_OVB.mp4
+63,2,SU0063,2025-05-17T15:00:00,2025-05-17T17:00:00,120,SVX,Екатеринбург,OVB,Новосибирск,Boeing 737,Bad weather,scheduled,flight_63_SVX_OVB.mp4
+64,2,SU0064,2025-05-18T18:00:00,2025-05-18T20:00:00,120,OVB,Новосибирск,LED,Санкт-Петербург,Boeing 737,Normal,scheduled,flight_64_OVB_LED.mp4
+65,2,SU0065,2025-05-19T06:00:00,2025-05-19T07:40:00,100,ROV,Ростов-на-Дону,KZN,Казань,Airbus A320,Normal,scheduled,flight_65_ROV_KZN.mp4
+66,2,SU0066,2025-05-20T06:00:00,2025-05-20T08:50:00,169,SVX,Екатеринбург,AER,Сочи,Superjet 100,Bad weather,scheduled,flight_66_SVX_AER.mp4
+67,2,SU0067,2025-05-21T21:00:00,2025-05-21T23:25:00,145,ROV,Ростов-на-Дону,SVO,Москва,Boeing 737,Normal,scheduled,flight_67_ROV_SVO.mp4
+68,2,SU0068,2025-05-22T06:00:00,2025-05-22T08:50:00,169,ROV,Ростов-на-Дону,SVX,Екатеринбург,Superjet 100,Delayed,scheduled,flight_68_ROV_SVX.mp4
+69,2,SU0069,2025-05-23T18:00:00,2025-05-23T19:40:00,100,KZN,Казань,SVO,Москва,Airbus A320,Bad weather,scheduled,flight_69_KZN_SVO.mp4
+70,2,SU0070,2025-05-24T08:00:00,2025-05-24T10:25:00,145,OVB,Новосибирск,AER,Сочи,Airbus A320,Normal,scheduled,flight_70_OVB_AER.mp4
+71,2,SU0071,2025-05-25T18:00:00,2025-05-25T20:25:00,145,SVO,Москва,ROV,Ростов-на-Дону,Boeing 777,Normal,scheduled,flight_71_SVO_ROV.mp4
+72,2,SU0072,2025-05-26T08:00:00,2025-05-26T09:40:00,100,SVO,Москва,AER,Сочи,Boeing 777,Bad weather,scheduled,flight_72_SVO_AER.mp4
+73,2,SU0073,2025-05-27T06:00:00,2025-05-27T07:20:00,79,SVX,Екатеринбург,ROV,Ростов-на-Дону,Boeing 737,Bad weather,scheduled,flight_73_SVX_ROV.mp4
+74,2,SU0074,2025-05-28T21:00:00,2025-05-28T22:20:00,79,AER,Сочи,LED,Санкт-Петербург,Boeing 737,Normal,scheduled,flight_74_AER_LED.mp4
+75,2,SU0075,2025-05-29T21:00:00,2025-05-29T23:00:00,120,SVO,Москва,KZN,Казань,Superjet 100,Maintenance,scheduled,flight_75_SVO_KZN.mp4
+76,2,SU0076,2025-05-30T18:00:00,2025-05-30T19:20:00,79,KZN,Казань,ROV,Ростов-на-Дону,Boeing 737,Normal,scheduled,flight_76_KZN_ROV.mp4
+77,2,SU0077,2025-05-31T18:00:00,2025-05-31T19:20:00,79,SVX,Екатеринбург,ROV,Ростов-на-Дону,Boeing 777,Delayed,scheduled,flight_77_SVX_ROV.mp4
+78,2,SU0078,2025-06-01T15:00:00,2025-06-01T17:00:00,120,AER,Сочи,KZN,Казань,Airbus A320,Normal,scheduled,flight_78_AER_KZN.mp4
+79,2,SU0079,2025-06-02T21:00:00,2025-06-02T22:40:00,100,ROV,Ростов-на-Дону,OVB,Новосибирск,Boeing 777,Normal,scheduled,flight_79_ROV_OVB.mp4
+80,2,SU0080,2025-06-03T12:00:00,2025-06-03T13:20:00,79,ROV,Ростов-на-Дону,OVB,Новосибирск,Airbus A320,Normal,scheduled,flight_80_ROV_OVB.mp4
+81,2,SU0081,2025-06-04T18:00:00,2025-06-04T19:20:00,79,SVO,Москва,SVX,Екатеринбург,Airbus A320,Delayed,scheduled,flight_81_SVO_SVX.mp4
+82,2,SU0082,2025-06-05T06:00:00,2025-06-05T07:20:00,79,AER,Сочи,SVX,Екатеринбург,Superjet 100,Delayed,scheduled,flight_82_AER_SVX.mp4
+83,2,SU0083,2025-06-06T15:00:00,2025-06-06T17:50:00,169,LED,Санкт-Петербург,ROV,Ростов-на-Дону,Boeing 777,Bad weather,scheduled,flight_83_LED_ROV.mp4
+84,2,SU0084,2025-06-07T21:00:00,2025-06-07T23:25:00,145,AER,Сочи,SVX,Екатеринбург,Boeing 737,Normal,scheduled,flight_84_AER_SVX.mp4
+85,2,SU0085,2025-06-08T08:00:00,2025-06-08T09:20:00,79,SVO,Москва,SVX,Екатеринбург,Airbus A320,Maintenance,scheduled,flight_85_SVO_SVX.mp4
+86,2,SU0086,2025-06-09T08:00:00,2025-06-09T09:20:00,79,SVO,Москва,KZN,Казань,Superjet 100,Bad weather,scheduled,flight_86_SVO_KZN.mp4
+87,2,SU0087,2025-06-10T06:00:00,2025-06-10T08:25:00,145,SVO,Москва,LED,Санкт-Петербург,Airbus A320,Maintenance,scheduled,flight_87_SVO_LED.mp4
+88,2,SU0088,2025-06-11T15:00:00,2025-06-11T17:00:00,120,AER,Сочи,LED,Санкт-Петербург,Superjet 100,Normal,scheduled,flight_88_AER_LED.mp4
+89,2,SU0089,2025-06-12T18:00:00,2025-06-12T20:25:00,145,SVO,Москва,KZN,Казань,Airbus A320,Delayed,scheduled,flight_89_SVO_KZN.mp4
+90,2,SU0090,2025-06-13T08:00:00,2025-06-13T09:20:00,79,ROV,Ростов-на-Дону,SVO,Москва,Boeing 737,Maintenance,scheduled,flight_90_ROV_SVO.mp4
+91,2,SU0091,2025-06-14T15:00:00,2025-06-14T16:40:00,100,OVB,Новосибирск,LED,Санкт-Петербург,Boeing 737,Normal,scheduled,flight_91_OVB_LED.mp4
+92,2,SU0092,2025-06-15T08:00:00,2025-06-15T10:25:00,145,AER,Сочи,KZN,Казань,Superjet 100,Delayed,scheduled,flight_92_AER_KZN.mp4
+93,2,SU0093,2025-06-16T15:00:00,2025-06-16T17:00:00,120,AER,Сочи,LED,Санкт-Петербург,Boeing 737,Normal,scheduled,flight_93_AER_LED.mp4
+94,2,SU0094,2025-06-17T08:00:00,2025-06-17T09:40:00,100,LED,Санкт-Петербург,KZN,Казань,Airbus A320,Normal,scheduled,flight_94_LED_KZN.mp4
+95,2,SU0095,2025-06-18T08:00:00,2025-06-18T09:20:00,79,LED,Санкт-Петербург,SVO,Москва,Boeing 777,Maintenance,scheduled,flight_95_LED_SVO.mp4
+96,2,SU0096,2025-06-19T12:00:00,2025-06-19T14:25:00,145,OVB,Новосибирск,KZN,Казань,Superjet 100,Bad weather,scheduled,flight_96_OVB_KZN.mp4
+97,2,SU0097,2025-06-20T12:00:00,2025-06-20T13:40:00,100,LED,Санкт-Петербург,SVO,Москва,Boeing 777,Delayed,scheduled,flight_97_LED_SVO.mp4
+98,2,SU0098,2025-06-21T06:00:00,2025-06-21T07:40:00,100,SVX,Екатеринбург,ROV,Ростов-на-Дону,Boeing 737,Maintenance,scheduled,flight_98_SVX_ROV.mp4
+99,2,SU0099,2025-06-22T06:00:00,2025-06-22T08:00:00,120,AER,Сочи,OVB,Новосибирск,Boeing 737,Normal,scheduled,flight_99_AER_OVB.mp4
+100,2,SU0100,2025-06-23T08:00:00,2025-06-23T10:25:00,145,LED,Санкт-Петербург,AER,Сочи,Superjet 100,Bad weather,scheduled,flight_100_LED_AER.mp4
+101,2,SU0101,2025-06-24T15:00:00,2025-06-24T17:00:00,120,ROV,Ростов-на-Дону,SVX,Екатеринбург,Boeing 737,Delayed,scheduled,flight_101_ROV_SVX.mp4
+102,2,SU0102,2025-06-25T12:00:00,2025-06-25T14:00:00,120,SVX,Екатеринбург,LED,Санкт-Петербург,Airbus A320,Maintenance,scheduled,flight_102_SVX_LED.mp4
+103,2,SU0103,2025-06-26T18:00:00,2025-06-26T20:00:00,120,SVO,Москва,OVB,Новосибирск,Superjet 100,Bad weather,scheduled,flight_103_SVO_OVB.mp4
+104,2,SU0104,2025-06-27T08:00:00,2025-06-27T10:25:00,145,SVO,Москва,AER,Сочи,Superjet 100,Maintenance,scheduled,flight_104_SVO_AER.mp4
+105,2,SU0105,2025-06-28T12:00:00,2025-06-28T13:40:00,100,SVX,Екатеринбург,LED,Санкт-Петербург,Boeing 737,Normal,scheduled,flight_105_SVX_LED.mp4
+106,2,SU0106,2025-06-29T15:00:00,2025-06-29T16:40:00,100,ROV,Ростов-на-Дону,SVX,Екатеринбург,Boeing 777,Bad weather,scheduled,flight_106_ROV_SVX.mp4
+107,2,SU0107,2025-06-30T18:00:00,2025-06-30T19:20:00,79,SVX,Екатеринбург,AER,Сочи,Superjet 100,Bad weather,scheduled,flight_107_SVX_AER.mp4
+108,2,SU0108,2025-07-01T06:00:00,2025-07-01T08:50:00,169,OVB,Новосибирск,LED,Санкт-Петербург,Superjet 100,Bad weather,scheduled,flight_108_OVB_LED.mp4
+109,2,SU0109,2025-07-02T18:00:00,2025-07-02T20:50:00,169,OVB,Новосибирск,KZN,Казань,Boeing 777,Normal,scheduled,flight_109_OVB_KZN.mp4
+110,2,SU0110,2025-07-03T08:00:00,2025-07-03T10:50:00,169,KZN,Казань,LED,Санкт-Петербург,Boeing 737,Bad weather,scheduled,flight_110_KZN_LED.mp4
+111,2,SU0111,2025-07-04T08:00:00,2025-07-04T10:25:00,145,SVO,Москва,KZN,Казань,Superjet 100,Maintenance,scheduled,flight_111_SVO_KZN.mp4
+112,2,SU0112,2025-07-05T08:00:00,2025-07-05T10:50:00,169,SVX,Екатеринбург,AER,Сочи,Airbus A320,Maintenance,scheduled,flight_112_SVX_AER.mp4
+113,2,SU0113,2025-07-06T06:00:00,2025-07-06T07:40:00,100,ROV,Ростов-на-Дону,OVB,Новосибирск,Boeing 737,Normal,scheduled,flight_113_ROV_OVB.mp4
+114,2,SU0114,2025-07-07T15:00:00,2025-07-07T17:00:00,120,OVB,Новосибирск,ROV,Ростов-на-Дону,Superjet 100,Delayed,scheduled,flight_114_OVB_ROV.mp4
+115,2,SU0115,2025-07-08T15:00:00,2025-07-08T16:20:00,79,KZN,Казань,AER,Сочи,Boeing 777,Maintenance,scheduled,flight_115_KZN_AER.mp4
+116,2,SU0116,2025-07-09T06:00:00,2025-07-09T08:00:00,120,ROV,Ростов-на-Дону,LED,Санкт-Петербург,Boeing 737,Bad weather,scheduled,flight_116_ROV_LED.mp4
+117,2,SU0117,2025-07-10T15:00:00,2025-07-10T17:00:00,120,SVX,Екатеринбург,SVO,Москва,Airbus A320,Delayed,scheduled,flight_117_SVX_SVO.mp4
+118,2,SU0118,2025-07-11T15:00:00,2025-07-11T17:00:00,120,LED,Санкт-Петербург,ROV,Ростов-на-Дону,Boeing 737,Maintenance,scheduled,flight_118_LED_ROV.mp4
+119,2,SU0119,2025-07-12T21:00:00,2025-07-12T23:00:00,120,OVB,Новосибирск,SVX,Екатеринбург,Boeing 737,Maintenance,scheduled,flight_119_OVB_SVX.mp4
+120,2,SU0120,2025-07-13T21:00:00,2025-07-13T22:40:00,100,AER,Сочи,KZN,Казань,Boeing 737,Delayed,scheduled,flight_120_AER_KZN.mp4
+121,2,SU0121,2025-07-14T15:00:00,2025-07-14T17:25:00,145,AER,Сочи,SVO,Москва,Boeing 737,Maintenance,scheduled,flight_121_AER_SVO.mp4
+122,2,SU0122,2025-07-15T08:00:00,2025-07-15T10:50:00,169,AER,Сочи,KZN,Казань,Boeing 737,Bad weather,scheduled,flight_122_AER_KZN.mp4
