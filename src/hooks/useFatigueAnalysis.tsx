@@ -54,8 +54,26 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
 
   const loadHistory = useCallback(async () => {
     try {
+      console.log("Loading history data...");
       const response = await api.get("/api/fatigue/history");
-      setHistoryData(response.data || []);
+      console.log("History response:", response.data);
+      
+      // Принудительная сортировка по дате (новые сверху) и analysis_id
+      const sortedData = (response.data || []).sort((a: HistoryData, b: HistoryData) => {
+        const dateA = new Date(a.analysis_date).getTime();
+        const dateB = new Date(b.analysis_date).getTime();
+        
+        // Сначала по дате (новые сверху)
+        if (dateB !== dateA) {
+          return dateB - dateA;
+        }
+        
+        // Если даты равны, то по analysis_id (больший ID сверху)
+        return b.analysis_id - a.analysis_id;
+      });
+      
+      console.log("Sorted history data:", sortedData);
+      setHistoryData(sortedData);
     } catch (error) {
       console.error("Error loading history:", error);
       toast({
@@ -115,8 +133,9 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       const result = response.data;
       setAnalysisResult(result);
       
-      // Reload history to include new analysis
-      await loadHistory(); // <= Это уже было, убедимся что результат подгружается
+      console.log("Analysis completed, reloading history...");
+      // Принудительно перезагружаем историю после анализа
+      await loadHistory();
 
       setAnalysisProgress({ loading: false, message: "Анализ завершен", percent: 100 });
       
@@ -166,7 +185,8 @@ export function useFatigueAnalysis(onAnalysisComplete?: (result: AnalysisResult)
       const result = response.data;
       setAnalysisResult(result);
       
-      // Reload history to include new analysis
+      console.log("Flight analysis completed, reloading history...");
+      // Принудительно перезагружаем историю после анализа рейса
       await loadHistory();
       
       setAnalysisProgress({ loading: false, message: "Анализ завершен", percent: 100 });
