@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -104,14 +103,12 @@ function HistoryAnalysisRow({
   analysis_date,
   neural_network_score,
   fatigue_level,
-  key: itemKey,
 }: {
   analysis_id: number;
   analysis_type: "flight" | "realtime";
   analysis_date: string;
   neural_network_score: number;
   fatigue_level?: string;
-  key: string;
 }) {
   const score = Math.round((neural_network_score || 0) * 100);
   const formattedDate = (() => {
@@ -152,7 +149,7 @@ function HistoryAnalysisRow({
   };
 
   return (
-    <div key={itemKey} className="flex items-center justify-between rounded-xl bg-slate-800/80 dark:bg-slate-950/70 px-5 py-4 mb-3 last:mb-0 shadow-sm">
+    <div className="flex items-center justify-between rounded-xl bg-slate-800/80 dark:bg-slate-950/70 px-5 py-4 mb-3 last:mb-0 shadow-sm">
       <div className="flex items-center gap-3 min-w-0">
         <span className={`w-3 h-3 rounded-full shrink-0 ${fatigueLevelColor(score)}`} />
         <div>
