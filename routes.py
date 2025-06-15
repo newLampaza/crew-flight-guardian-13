@@ -4,6 +4,8 @@ from flask import Flask, send_from_directory, jsonify, request, Response
 from flask_cors import CORS
 import logging
 from datetime import timedelta
+import sqlite3
+from datetime import datetime
 
 # Import blueprints
 from blueprints.auth import auth_bp, AuthError, handle_auth_error
@@ -243,11 +245,13 @@ def get_flight_stats():
     @token_required
     def protected(current_user):
         try:
+            logger.info("[FlightStats] Запрос получен, обработка для пользователя: %s", current_user)
             conn = sqlite3.connect('database/database.db')
             conn.row_factory = sqlite3.Row
 
             # Получаем employee_id текущего пользователя
             employee_id = current_user['employee_id']
+            logger.info("[FlightStats] employee_id: %s", employee_id)
 
             now = datetime.now()
 
@@ -256,6 +260,8 @@ def get_flight_stats():
             month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             week_start_str = week_start.strftime('%Y-%m-%dT%H:%M:%S')
             month_start_str = month_start.strftime('%Y-%m-%dT%H:%M:%S')
+
+            logger.info("[FlightStats] week_start: %s, month_start: %s", week_start_str, month_start_str)
 
             # Считаем completed + scheduled
             weekly = conn.execute(
@@ -269,6 +275,8 @@ def get_flight_stats():
                 """,
                 (employee_id, week_start_str)
             ).fetchone()
+            logger.info("[FlightStats] Week Results: flights=%s, hours=%s", weekly['flights'], weekly['hours'])
+
             monthly = conn.execute(
                 """
                 SELECT COUNT(*) as flights, COALESCE(SUM(duration),0) as hours
@@ -280,6 +288,8 @@ def get_flight_stats():
                 """,
                 (employee_id, month_start_str)
             ).fetchone()
+            logger.info("[FlightStats] Month Results: flights=%s, hours=%s", monthly['flights'], monthly['hours'])
+
             # Часы округляем вниз до целых (или показываем с минутами на фронте)
             result = {
                 "weeklyFlights": weekly['flights'],
@@ -287,11 +297,12 @@ def get_flight_stats():
                 "monthlyFlights": monthly['flights'],
                 "monthlyHours": int(monthly['hours'] // 60)
             }
+            logger.info("[FlightStats] Отправляем результат: %s", result)
             conn.close()
             return jsonify(result)
+
         except Exception as e:
-            import logging
-            logging.error(f'[FlightStats] {e}')
+            logger.error('[FlightStats] Ошибка: %s', e, exc_info=True)
             return jsonify({'error': 'Failed to fetch flight stats'}), 500
     return protected()
 
