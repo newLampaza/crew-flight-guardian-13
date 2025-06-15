@@ -25,6 +25,25 @@ const Dashboard = () => {
 
   const { data: flightStats, isLoading: loadingStats, error: statsError } = useFlightStats();
 
+  // Временный мок — при необходимости заменить на реальный запрос
+  const crewData = [
+    {
+      id: 1,
+      name: "Иванов И.И.",
+      position: "Командир экипажа"
+    },
+    {
+      id: 2,
+      name: "Петров П.П.",
+      position: "Второй пилот"
+    },
+    {
+      id: 3,
+      name: "Сидорова А.А.",
+      position: "Бортпроводник"
+    }
+  ];
+
   if (isAdmin()) {
     return <AdminHome />;
   }
