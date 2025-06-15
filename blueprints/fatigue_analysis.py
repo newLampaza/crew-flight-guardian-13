@@ -326,7 +326,10 @@ def submit_fatigue_feedback(current_user):
                 return jsonify({'error': 'Score must be between 1 and 5'}), 400
         except ValueError:
             return jsonify({'error': 'Invalid data types'}), 400
-            
+
+        # Получаем комментарий, может быть 'comment' либо 'comments', также поддерживаем отсутствие (None => пустая строка)
+        comment = data.get('comment') or data.get('comments') or ''
+
         conn = sqlite3.connect('database/database.db')
         conn.row_factory = sqlite3.Row
         
@@ -357,7 +360,7 @@ def submit_fatigue_feedback(current_user):
             INSERT INTO FatigueAnalysisFeedback 
             (employee_id, analysis_id, rating, comments, created_at)
             VALUES (?, ?, ?, ?, ?)
-        ''', (current_user['employee_id'], analysis_id, score, '', current_datetime))
+        ''', (current_user['employee_id'], analysis_id, score, comment, current_datetime))
         
         conn.commit()
         feedback_id = cursor.lastrowid
@@ -366,7 +369,8 @@ def submit_fatigue_feedback(current_user):
             'status': 'success',
             'feedback_id': feedback_id,
             'analysis_id': analysis_id,
-            'rating': score
+            'rating': score,
+            'comment': comment
         })
         
     except Exception as e:
