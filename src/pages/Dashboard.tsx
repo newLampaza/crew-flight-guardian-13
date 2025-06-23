@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
@@ -17,13 +18,11 @@ import {
   AlertTriangle,
   Activity,
   ChevronRight,
-  Calendar,
-  CheckCircle2
+  Calendar
 } from "lucide-react";
 import { useDashboardFlightStats } from "@/hooks/useDashboardFlightStats";
 import { useDashboardCrew } from "@/hooks/useDashboardCrew";
 import { useDashboardCurrentFlight } from "@/hooks/useDashboardCurrentFlight";
-import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
@@ -32,14 +31,6 @@ const Dashboard = () => {
   const { data: flightStats, isLoading: isStatsLoading } = useDashboardFlightStats();
   const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
   const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
-  
-  // Получаем данные анализа усталости
-  const { historyData, loadHistory } = useFatigueAnalysis();
-  
-  // Загружаем историю анализов при маунте компонента
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -64,42 +55,6 @@ const Dashboard = () => {
       return timeString;
     }
   };
-
-  // Вычисляем текущий уровень усталости на основе последнего анализа
-  const getCurrentFatigueLevel = () => {
-    if (historyData.length === 0) return 0;
-    const latestAnalysis = historyData[0]; // historyData уже отсортирован по дате
-    return Math.round((latestAnalysis.neural_network_score || 0) * 100);
-  };
-
-  const getFatigueStatus = (level) => {
-    if (level >= 70) {
-      return {
-        status: 'Критический уровень',
-        color: 'text-rose-500',
-        icon: AlertTriangle,
-        message: 'Требует немедленного внимания'
-      };
-    } else if (level >= 50) {
-      return {
-        status: 'Требует внимания',
-        color: 'text-amber-500',
-        icon: AlertTriangle,
-        message: 'Повышенный уровень усталости'
-      };
-    } else {
-      return {
-        status: 'Нормальный уровень',
-        color: 'text-emerald-500',
-        icon: CheckCircle2,
-        message: 'В пределах нормы'
-      };
-    }
-  };
-
-  const currentFatigueLevel = getCurrentFatigueLevel();
-  const fatigueStatus = getFatigueStatus(currentFatigueLevel);
-  const StatusIcon = fatigueStatus.icon;
 
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
@@ -422,7 +377,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         
-        {/* Fatigue Analysis with Data from FatigueStatusCard */}
+        {/* Fatigue Analysis */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-2xl flex items-center gap-3">
@@ -433,59 +388,34 @@ const Dashboard = () => {
           <CardContent>
             <div className="space-y-5">
               <div className="flex flex-col items-center">
-                <div className="mb-3 text-6xl font-bold text-muted-foreground">
-                  {currentFatigueLevel > 0 ? `${currentFatigueLevel}%` : '—'}
-                </div>
-                <div className="text-base text-muted-foreground">
-                  {currentFatigueLevel > 0 ? fatigueStatus.status : 'Нет данных'}
+                <div className="mb-3 text-6xl font-bold text-status-warning">65%</div>
+                <div className="text-base text-muted-foreground">Средний уровень усталости</div>
+              </div>
+              
+              <div className="bg-amber-50 dark:bg-amber-500/10 p-4 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-6 w-6 text-amber-500 mt-0.5" />
+                  <div>
+                    <p className="text-base font-medium">Превышение нормы</p>
+                    <p className="text-sm text-muted-foreground">Рекомендуется дополнительный отдых перед следующим рейсом</p>
+                  </div>
                 </div>
               </div>
               
-              {currentFatigueLevel >= 50 && (
-                <div className={`p-4 rounded-lg border ${
-                  currentFatigueLevel >= 70 
-                    ? 'bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-800' 
-                    : 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-800'
-                }`}>
-                  <div className="flex items-start gap-3">
-                    <StatusIcon className={`h-6 w-6 ${fatigueStatus.color} mt-0.5`} />
-                    <div>
-                      <p className="text-base font-medium">{fatigueStatus.status}</p>
-                      <p className="text-sm text-muted-foreground">{fatigueStatus.message}</p>
-                    </div>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center w-2/3">
+                  <Activity className="h-5 w-5 text-primary mr-2" />
+                  <span className="text-base truncate">Динамика за неделю</span>
+                </div>
+                <div className="flex items-center w-1/3 justify-end">
+                  <span className="text-rose-500 mr-2 text-base">+5%</span>
+                  <div className="w-20 h-2 bg-secondary rounded-full overflow-hidden">
+                    <div className="h-full bg-rose-500 rounded-full" style={{
+                      width: "60%"
+                    }}></div>
                   </div>
                 </div>
-              )}
-              
-              {historyData.length >= 2 && (
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center w-2/3">
-                    <Activity className="h-5 w-5 text-primary mr-2" />
-                    <span className="text-base truncate">Динамика за неделю</span>
-                  </div>
-                  <div className="flex items-center w-1/3 justify-end">
-                    {(() => {
-                      const latest = Math.round((historyData[0].neural_network_score || 0) * 100);
-                      const previous = Math.round((historyData[1].neural_network_score || 0) * 100);
-                      const change = latest - previous;
-                      const isIncrease = change > 0;
-                      return (
-                        <>
-                          <span className={`mr-2 text-base ${isIncrease ? 'text-rose-500' : 'text-emerald-500'}`}>
-                            {isIncrease ? '+' : ''}{change}%
-                          </span>
-                          <div className="w-20 h-2 bg-secondary rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${isIncrease ? 'bg-rose-500' : 'bg-emerald-500'}`} 
-                              style={{ width: `${Math.min(Math.abs(change) * 10, 100)}%` }}
-                            ></div>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
+              </div>
               
               <div className="flex justify-center">
                 <Link to="/fatigue-analysis">
