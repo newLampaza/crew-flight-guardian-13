@@ -23,6 +23,7 @@ import {
 import { useDashboardFlightStats } from "@/hooks/useDashboardFlightStats";
 import { useDashboardCrew } from "@/hooks/useDashboardCrew";
 import { useDashboardCurrentFlight } from "@/hooks/useDashboardCurrentFlight";
+import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
@@ -31,6 +32,14 @@ const Dashboard = () => {
   const { data: flightStats, isLoading: isStatsLoading } = useDashboardFlightStats();
   const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
   const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
+  
+  // Добавляем данные анализа усталости
+  const { historyData, loadHistory } = useFatigueAnalysis();
+
+  // Загружаем историю анализов при монтировании компонента
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   if (isAdmin()) {
     return <AdminHome />;
@@ -55,6 +64,65 @@ const Dashboard = () => {
       return timeString;
     }
   };
+
+  // Функции для анализа данных усталости
+  const getCurrentFatigueLevel = () => {
+    if (historyData.length === 0) return 65; // значение по умолчанию
+    return Math.round((historyData[0].neural_network_score || 0) * 100);
+  };
+
+  const getFatigueStatus = (level) => {
+    if (level >= 70) {
+      return {
+        status: 'Критический уровень',
+        color: 'text-rose-500',
+        bgColor: 'bg-rose-500',
+        badge: 'Недопустимый уровень'
+      };
+    } else if (level >= 50) {
+      return {
+        status: 'Требует внимания',
+        color: 'text-amber-500',
+        bgColor: 'bg-amber-500',
+        badge: 'Условный допуск'
+      };
+    } else {
+      return {
+        status: 'Нормальный уровень',
+        color: 'text-emerald-500',
+        bgColor: 'bg-emerald-500',
+        badge: 'Полный допуск'
+      };
+    }
+  };
+
+  const getWeeklyTrend = () => {
+    if (historyData.length < 2) return { change: 0, direction: 'stable' };
+    
+    // Получаем данные за последнюю неделю
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    
+    const weeklyData = historyData.filter(item => {
+      const itemDate = new Date(item.analysis_date);
+      return itemDate >= weekAgo;
+    });
+    
+    if (weeklyData.length < 2) return { change: 0, direction: 'stable' };
+    
+    const latest = weeklyData[0].neural_network_score * 100;
+    const oldest = weeklyData[weeklyData.length - 1].neural_network_score * 100;
+    const change = Math.round(latest - oldest);
+    
+    return {
+      change: Math.abs(change),
+      direction: change > 5 ? 'increase' : change < -5 ? 'decrease' : 'stable'
+    };
+  };
+
+  const currentFatigueLevel = getCurrentFatigueLevel();
+  const fatigueStatusInfo = getFatigueStatus(currentFatigueLevel);
+  const weeklyTrend = getWeeklyTrend();
 
   return (
     <div className="space-y-8 animate-fade-in max-w-7xl mx-auto">
@@ -377,7 +445,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         
-        {/* Fatigue Analysis */}
+        {/* Fatigue Analysis - Updated with real data */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-2xl flex items-center gap-3">
@@ -388,18 +456,59 @@ const Dashboard = () => {
           <CardContent>
             <div className="space-y-5">
               <div className="flex flex-col items-center">
-                <div className="mb-3 text-6xl font-bold text-status-warning">65%</div>
-                <div className="text-base text-muted-foreground">Средний уровень усталости</div>
-              </div>
-              
-              <div className="bg-amber-50 dark:bg-amber-500/10 p-4 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="h-6 w-6 text-amber-500 mt-0.5" />
-                  <div>
-                    <p className="text-base font-medium">Превышение нормы</p>
-                    <p className="text-sm text-muted-foreground">Рекомендуется дополнительный отдых перед следующим рейсом</p>
+                <div className="relative w-32 h-32 mb-4">
+                  <svg className="w-full h-full transform -rotate-90">
+                    <circle
+                      cx="64"
+                      cy="64"
+                      r="56"
+                      stroke="currentColor"
+                      strokeWidth="16"
+                      fill="none"
+                      className="text-muted/20"
+                    />
+                    <circle
+                      cx="64"
+                      cy="64"
+                      r="56"
+                      stroke="currentColor"
+                      strokeWidth="16"
+                      fill="none"
+                      strokeDasharray={351.8583}
+                      strokeDashoffset={351.8583 - (351.8583 * currentFatigueLevel) / 100}
+                      className={`transition-all duration-1000 ${
+                        currentFatigueLevel >= 70 ? 'text-rose-500' : 
+                        currentFatigueLevel >= 50 ? 'text-amber-500' : 
+                        'text-emerald-500'
+                      }`}
+                    />
+                  </svg>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                    <span className="text-3xl font-bold">{currentFatigueLevel}%</span>
+                    <span className="text-xs block text-muted-foreground">Усталость</span>
                   </div>
                 </div>
+
+                <Badge className={`${fatigueStatusInfo.bgColor} text-white mb-3 py-1 px-3 text-sm`}>
+                  {fatigueStatusInfo.badge}
+                </Badge>
+
+                {currentFatigueLevel >= 50 && (
+                  <div className="w-full bg-amber-50 dark:bg-amber-500/10 p-3 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium">{fatigueStatusInfo.status}</p>
+                        <p className="text-muted-foreground">
+                          {currentFatigueLevel >= 70 
+                            ? 'Требуется немедленный отдых' 
+                            : 'Рекомендуется дополнительный отдых перед следующим рейсом'
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div className="flex justify-between items-center">
@@ -408,10 +517,21 @@ const Dashboard = () => {
                   <span className="text-base truncate">Динамика за неделю</span>
                 </div>
                 <div className="flex items-center w-1/3 justify-end">
-                  <span className="text-rose-500 mr-2 text-base">+5%</span>
+                  <span className={`mr-2 text-base ${
+                    weeklyTrend.direction === 'increase' ? 'text-rose-500' : 
+                    weeklyTrend.direction === 'decrease' ? 'text-emerald-500' : 
+                    'text-muted-foreground'
+                  }`}>
+                    {weeklyTrend.direction === 'increase' ? '+' : weeklyTrend.direction === 'decrease' ? '-' : ''}
+                    {weeklyTrend.change}%
+                  </span>
                   <div className="w-20 h-2 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-rose-500 rounded-full" style={{
-                      width: "60%"
+                    <div className={`h-full rounded-full ${
+                      weeklyTrend.direction === 'increase' ? 'bg-rose-500' : 
+                      weeklyTrend.direction === 'decrease' ? 'bg-emerald-500' : 
+                      'bg-muted-foreground'
+                    }`} style={{
+                      width: `${Math.min(weeklyTrend.change * 2, 100)}%`
                     }}></div>
                   </div>
                 </div>
