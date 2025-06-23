@@ -1,7 +1,9 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/use-toast";
 import { Brain, Activity, RefreshCw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -415,24 +417,26 @@ const FatigueAnalysisPage = () => {
                   <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </Button>
               </div>
-              <div className="space-y-0">
-                {historyData.length > 0 ? (
-                  historyData.slice(0, 6).map((item) => (
-                    <HistoryAnalysisRow
-                      key={`${item.analysis_id}-${item.analysis_date}-${lastUpdate}`}
-                      analysis_id={item.analysis_id}
-                      analysis_type={item.analysis_type}
-                      analysis_date={item.analysis_date}
-                      neural_network_score={item.neural_network_score}
-                      fatigue_level={item.fatigue_level}
-                    />
-                  ))
-                ) : (
-                  <div className="text-sm text-slate-400 text-center py-6">
-                    Нет данных анализов
-                  </div>
-                )}
-              </div>
+              <ScrollArea className="h-[320px] pr-3">
+                <div className="space-y-0">
+                  {historyData.length > 0 ? (
+                    historyData.map((item) => (
+                      <HistoryAnalysisRow
+                        key={`${item.analysis_id}-${item.analysis_date}-${lastUpdate}`}
+                        analysis_id={item.analysis_id}
+                        analysis_type={item.analysis_type}
+                        analysis_date={item.analysis_date}
+                        neural_network_score={item.neural_network_score}
+                        fatigue_level={item.fatigue_level}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-sm text-slate-400 text-center py-6">
+                      Нет данных анализов
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         </div>
@@ -440,44 +444,64 @@ const FatigueAnalysisPage = () => {
 
       {/* Analysis Mode Dialog */}
       <Dialog open={analysisMode !== null} onOpenChange={(open) => !open && handleCloseDialog()}>
-        <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="p-6 pb-2">
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] border-0 shadow-2xl">
+          <DialogHeader className="pb-4">
             <DialogTitle className="text-xl font-semibold">Выберите тип анализа</DialogTitle>
             <DialogDescription className="text-muted-foreground">
               Выберите метод анализа усталости пилота
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex flex-col gap-6 p-6 pt-2">
-            <VideoRecorder
-              recording={recording}
-              timeLeft={timeLeft}
-              onStartRecording={startRecording}
-              onStopRecording={stopRecording}
-              analysisResult={analysisResult}
-              cameraError={cameraError}
-              videoRef={videoRef}
-              recordedBlob={recordedBlob || undefined}
-            />
+          <ScrollArea className="max-h-[70vh] pr-4">
+            <div className="flex flex-col gap-6">
+              <VideoRecorder
+                recording={recording}
+                timeLeft={timeLeft}
+                onStartRecording={startRecording}
+                onStopRecording={stopRecording}
+                analysisResult={analysisResult}
+                cameraError={cameraError}
+                videoRef={videoRef}
+                recordedBlob={recordedBlob || undefined}
+              />
 
-            <FlightAnalyzer
-              lastFlight={lastFlight}
-              onAnalyzeFlight={handleAnalyzeFlight}
-              formatDate={formatDate}
-            />
-          </div>
+              <FlightAnalyzer
+                lastFlight={lastFlight}
+                onAnalyzeFlight={handleAnalyzeFlight}
+                formatDate={formatDate}
+              />
+            </div>
+          </ScrollArea>
           
-          <AnalysisProgress
-            loading={analysisProgress.loading}
-            message={analysisProgress.message}
-            percent={analysisProgress.percent}
-          />
+          {/* Убираем замыливание - компонент прогресса не будет перекрывать диалог */}
+          {analysisProgress.loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg">
+              <div className="bg-card p-8 rounded-2xl shadow-lg min-w-[300px] text-center border">
+                <div className="relative w-16 h-16 mx-auto mb-4">
+                  <div className="absolute inset-0 rounded-full border-4 border-primary border-opacity-20"></div>  
+                  <div className="absolute inset-0 rounded-full border-4 border-t-primary border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+                  <Brain className="absolute inset-0 m-auto h-8 w-8 text-primary animate-pulse" />
+                </div>
+                
+                <div className="space-y-3">
+                  <h3 className="font-medium text-lg">{analysisProgress.message}</h3>
+                  <div className="w-full bg-secondary rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${analysisProgress.percent}%` }}
+                    />
+                  </div>
+                  <p className="text-muted-foreground">{analysisProgress.percent}% завершено</p>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Results dialog */}
       <Dialog open={analysisResult !== null} onOpenChange={(open) => !open && handleCloseResults()}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] border-0 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold">Результаты анализа</DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -485,25 +509,29 @@ const FatigueAnalysisPage = () => {
             </DialogDescription>
           </DialogHeader>
           
-          {analysisResult && (
-            <AnalysisResult
-              analysisResult={analysisResult}
-              feedbackScore={feedbackScore}
-              setFeedbackScore={setFeedbackScore}
-              onClose={handleCloseResults}
-              onSubmitFeedback={handleSubmitFeedback}
-            />
-          )}
-          {/* Поле для комментария к отзыву */}
-          <div className="mt-4">
-            <label htmlFor="feedback-comment" className="block mb-1 text-sm text-muted-foreground">Комментарий к отзыву</label>
-            <Textarea
-              id="feedback-comment"
-              value={feedbackComment}
-              onChange={e => setFeedbackComment(e.target.value)}
-              placeholder="Оставьте комментарий к анализу (необязательно)"
-            />
-          </div>
+          <ScrollArea className="max-h-[70vh] pr-4">
+            <div className="space-y-4">
+              {analysisResult && (
+                <AnalysisResult
+                  analysisResult={analysisResult}
+                  feedbackScore={feedbackScore}
+                  setFeedbackScore={setFeedbackScore}
+                  onClose={handleCloseResults}
+                  onSubmitFeedback={handleSubmitFeedback}
+                />
+              )}
+              {/* Поле для комментария к отзыву */}
+              <div className="mt-4">
+                <label htmlFor="feedback-comment" className="block mb-1 text-sm text-muted-foreground">Комментарий к отзыву</label>
+                <Textarea
+                  id="feedback-comment"
+                  value={feedbackComment}
+                  onChange={e => setFeedbackComment(e.target.value)}
+                  placeholder="Оставьте комментарий к анализу (необязательно)"
+                />
+              </div>
+            </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>

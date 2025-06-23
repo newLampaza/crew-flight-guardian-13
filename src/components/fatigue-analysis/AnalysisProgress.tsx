@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Brain } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
 
 interface AnalysisProgressProps {
   loading: boolean;
@@ -17,18 +16,23 @@ export const AnalysisProgress: React.FC<AnalysisProgressProps> = ({
   if (!loading) return null;
   
   return (
-    <div className="fixed inset-0 backdrop-blur-md bg-black/30 z-50 flex items-center justify-center">
-      <div className="bg-background/80 backdrop-blur p-8 rounded-2xl shadow-lg min-w-[300px] text-center border border-border/50">
-        <div className="relative w-16 h-16 mx-auto">
+    <div className="flex items-center justify-center p-8">
+      <div className="bg-card p-8 rounded-2xl shadow-lg min-w-[300px] text-center border">
+        <div className="relative w-16 h-16 mx-auto mb-4">
           <div className="absolute inset-0 rounded-full border-4 border-primary border-opacity-20"></div>
           <div className="absolute inset-0 rounded-full border-4 border-t-primary border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
           <Brain className="absolute inset-0 m-auto h-8 w-8 text-primary animate-pulse" />
         </div>
         
-        <div className="mt-6">
+        <div className="space-y-3">
           <h3 className="font-medium text-lg">{message}</h3>
-          <Progress value={percent} className="h-2 mt-3" />
-          <p className="mt-2 text-muted-foreground">{percent}% завершено</p>
+          <div className="w-full bg-secondary rounded-full h-2">
+            <div 
+              className="bg-primary h-2 rounded-full transition-all duration-300"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <p className="text-muted-foreground">{percent}% завершено</p>
         </div>
       </div>
     </div>
