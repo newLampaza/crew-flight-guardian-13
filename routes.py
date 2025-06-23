@@ -36,6 +36,26 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+# Add video serving endpoint
+@app.route('/api/video/<filename>', methods=['GET'])
+def serve_video(filename):
+    """Serve video files from neural_network/data/video directory"""
+    try:
+        video_dir = os.path.join('neural_network', 'data', 'video')
+        video_path = os.path.join(video_dir, filename)
+        
+        # Check if file exists
+        if not os.path.exists(video_path):
+            logger.error(f"Video file not found: {video_path}")
+            return jsonify({'error': 'Video file not found'}), 404
+        
+        # Serve the video file
+        return send_from_directory(video_dir, filename, as_attachment=False)
+        
+    except Exception as e:
+        logger.error(f"Error serving video {filename}: {e}")
+        return jsonify({'error': 'Failed to serve video'}), 500
+
 # Add dashboard endpoints
 @app.route('/api/dashboard/current-flight', methods=['GET'])
 def get_current_flight():
