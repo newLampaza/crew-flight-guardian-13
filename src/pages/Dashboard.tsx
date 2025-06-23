@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
@@ -24,6 +23,7 @@ import { useDashboardFlightStats } from "@/hooks/useDashboardFlightStats";
 import { useDashboardCrew } from "@/hooks/useDashboardCrew";
 import { useDashboardCurrentFlight } from "@/hooks/useDashboardCurrentFlight";
 import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
+import { useFlights } from "@/hooks/useFlights";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
@@ -32,6 +32,7 @@ const Dashboard = () => {
   const { data: flightStats, isLoading: isStatsLoading } = useDashboardFlightStats();
   const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
   const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
+  const { data: flights = [] } = useFlights();
   
   // Добавляем данные анализа усталости
   const { historyData, loadHistory } = useFatigueAnalysis();
@@ -65,12 +66,48 @@ const Dashboard = () => {
     }
   };
 
-  // Функции для анализа данных усталости
-  const getCurrentFatigueLevel = () => {
-    if (historyData.length === 0) return 65; // значение по умолчанию
-    return Math.round((historyData[0].neural_network_score || 0) * 100);
-  };
+  // Функция для получения строки даты в формате YYYY-MM-DD
+  const getDayString = (date: Date) => date.toISOString().slice(0, 10);
 
+  // Определяем текущую дату
+  const todayStr = getDayString(new Date());
+
+  // Анализы за сегодня типа 'realtime'
+  const todaysRealtime = historyData.filter(
+    h =>
+      h.analysis_type === "realtime" &&
+      h.analysis_date &&
+      getDayString(new Date(h.analysis_date)) === todayStr
+  );
+
+  // Анализы по рейсам за сегодня
+  const todaysFlights = flights.filter(f => f.arrival_time && getDayString(new Date(f.arrival_time)) === todayStr);
+
+  const flightFatigueAnalyses = todaysFlights
+    .map(flight => {
+      const historyOfFlight = historyData
+        .filter(h => h.analysis_type === "flight" && h.flight_id === flight.flight_id);
+      if (historyOfFlight.length === 0) return null;
+      return historyOfFlight.reduce((latest, h) => 
+        new Date(h.analysis_date) > new Date(latest.analysis_date) ? h : latest
+      );
+    })
+    .filter(Boolean);
+
+  // Объединяем все сегодняшние анализы
+  const todayAllAnalyses = [
+    ...todaysRealtime,
+    ...flightFatigueAnalyses
+  ];
+
+  // Вычисляем текущий уровень усталости как среднее за сегодня (как в FatigueStatusCard)
+  const currentFatigueLevel = todayAllAnalyses.length > 0
+    ? Math.round(
+        todayAllAnalyses.reduce((acc, h) => acc + ((h.neural_network_score || 0) * 100), 0) / todayAllAnalyses.length
+      )
+    : 65; // Значение по умолчанию
+
+  // Функции для анализа данных усталости
   const getFatigueStatus = (level) => {
     if (level >= 70) {
       return {
@@ -120,7 +157,6 @@ const Dashboard = () => {
     };
   };
 
-  const currentFatigueLevel = getCurrentFatigueLevel();
   const fatigueStatusInfo = getFatigueStatus(currentFatigueLevel);
   const weeklyTrend = getWeeklyTrend();
 
@@ -445,7 +481,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         
-        {/* Fatigue Analysis - Updated with real data */}
+        {/* Fatigue Analysis - Updated to use same logic as FatigueStatusCard */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-2xl flex items-center gap-3">
