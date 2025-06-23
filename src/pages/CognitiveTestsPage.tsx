@@ -58,11 +58,15 @@ const CognitiveTestsPage = () => {
     activeTestId,
     testInProgress,
     testComplete,
+    reviewingSkipped,
     currentTestSession,
     testResults,
     isLoading: testLoading,
     startTest,
     handleAnswer,
+    handleSkipQuestion,
+    reviewSkippedQuestions,
+    finishTestWithSkipped,
     closeTest,
     handleTimeUp
   } = useCognitiveTest();
@@ -276,12 +280,16 @@ const CognitiveTestsPage = () => {
         testConfig={activeTestConfig}
         testInProgress={testInProgress}
         testComplete={testComplete}
+        reviewingSkipped={reviewingSkipped}
         currentTestSession={currentTestSession}
         testResults={testResults}
         isLoading={testLoading}
         onClose={handleCloseTest}
         onStart={handleStartTest}
         onAnswer={handleAnswer}
+        onSkip={handleSkipQuestion}
+        onReviewSkipped={reviewSkippedQuestions}
+        onFinishWithSkipped={finishTestWithSkipped}
         onTimeUp={handleTimeUp}
       />
       

@@ -50,6 +50,8 @@ export interface TestSession {
   current_question: number;
   time_limit: number;
   total_questions: number;
+  answers: Record<string, string>;
+  skipped_questions: string[];
 }
 
 export interface TestResult {

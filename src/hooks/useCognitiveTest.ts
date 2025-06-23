@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { TestHistory, TestQuestion, TestResult, TestResultSummary } from "@/types/cognitivetests";
 import { cognitiveTestsApi } from "@/api/cognitiveTestsApi";
@@ -9,12 +8,14 @@ export const useCognitiveTest = () => {
   const [activeTestId, setActiveTestId] = useState<string | null>(null);
   const [testInProgress, setTestInProgress] = useState(false);
   const [testComplete, setTestComplete] = useState(false);
+  const [reviewingSkipped, setReviewingSkipped] = useState(false);
   const [currentTestSession, setCurrentTestSession] = useState<{
     testId: string;
     questions: TestQuestion[];
     timeLimit: number;
     currentQuestion: number;
     answers: Record<string, string>;
+    skippedQuestions: string[];
   } | null>(null);
   const [testResults, setTestResults] = useState<TestResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +48,6 @@ export const useCognitiveTest = () => {
 
       // Проверяем период перезарядки теста
       try {
-        // Прежде чем делать запрос к API, убедимся что testId действителен
         if (!testId) {
           toast({
             title: "Ошибка",
@@ -72,8 +72,6 @@ export const useCognitiveTest = () => {
         }
       } catch (cooldownError) {
         console.error("Ошибка при проверке перезарядки:", cooldownError);
-        // Продолжаем, так как это не критическая ошибка для запуска теста
-        // Но уведомляем пользователя
         toast({
           title: "Предупреждение",
           description: "Не удалось проверить перезарядку теста. Продолжаем запуск.",
@@ -91,11 +89,13 @@ export const useCognitiveTest = () => {
         questions: session.questions,
         timeLimit: session.time_limit,
         currentQuestion: 0,
-        answers: {}
+        answers: {},
+        skippedQuestions: []
       });
       
       setTestInProgress(true);
       setTestComplete(false);
+      setReviewingSkipped(false);
       setIsLoading(false);
 
       toast({
@@ -105,7 +105,6 @@ export const useCognitiveTest = () => {
     } catch (error) {
       console.error("Не удалось начать тест:", error);
       
-      // Более информативное сообщение об ошибке
       let errorMessage = "Не удалось начать тест";
       if (error.response?.status === 401) {
         errorMessage = "Ошибка авторизации. Пожалуйста, войдите в систему снова";
@@ -132,33 +131,108 @@ export const useCognitiveTest = () => {
       [questionId]: answer
     };
     
+    const updatedSkipped = currentTestSession.skippedQuestions.filter(id => id !== questionId);
+    
+    const nextQuestion = currentTestSession.currentQuestion + 1;
+    
+    if (reviewingSkipped) {
+      const remainingSkipped = updatedSkipped.length;
+      if (remainingSkipped === 0) {
+        submitTest(currentTestSession.testId, updatedAnswers);
+      } else {
+        const nextSkippedId = updatedSkipped[0];
+        const nextSkippedIndex = currentTestSession.questions.findIndex(q => q.id === nextSkippedId);
+        
+        setCurrentTestSession({
+          ...currentTestSession,
+          currentQuestion: nextSkippedIndex,
+          answers: updatedAnswers,
+          skippedQuestions: updatedSkipped
+        });
+      }
+    } else {
+      if (nextQuestion >= currentTestSession.questions.length) {
+        if (updatedSkipped.length > 0) {
+          setCurrentTestSession({
+            ...currentTestSession,
+            answers: updatedAnswers,
+            skippedQuestions: updatedSkipped
+          });
+          setTestComplete(true);
+        } else {
+          submitTest(currentTestSession.testId, updatedAnswers);
+        }
+      } else {
+        setCurrentTestSession({
+          ...currentTestSession,
+          currentQuestion: nextQuestion,
+          answers: updatedAnswers,
+          skippedQuestions: updatedSkipped
+        });
+
+        const progress = Math.round((nextQuestion / currentTestSession.questions.length) * 100);
+        if (progress % 25 === 0) {
+          toast({
+            title: `Прогресс: ${progress}%`,
+            description: `Выполнено ${nextQuestion} из ${currentTestSession.questions.length} вопросов`,
+          });
+        }
+      }
+    }
+  };
+
+  const handleSkipQuestion = () => {
+    if (!currentTestSession) return;
+    
+    const currentQuestionId = currentTestSession.questions[currentTestSession.currentQuestion].id;
+    const updatedSkipped = [...currentTestSession.skippedQuestions, currentQuestionId];
     const nextQuestion = currentTestSession.currentQuestion + 1;
     
     if (nextQuestion >= currentTestSession.questions.length) {
-      submitTest(currentTestSession.testId, updatedAnswers);
+      setCurrentTestSession({
+        ...currentTestSession,
+        skippedQuestions: updatedSkipped
+      });
+      setTestComplete(true);
     } else {
       setCurrentTestSession({
         ...currentTestSession,
         currentQuestion: nextQuestion,
-        answers: updatedAnswers
+        skippedQuestions: updatedSkipped
       });
-
-      // Уведомление о прогрессе
-      const progress = Math.round((nextQuestion / currentTestSession.questions.length) * 100);
-      if (progress % 25 === 0) {
-        toast({
-          title: `Прогресс: ${progress}%`,
-          description: `Выполнено ${nextQuestion} из ${currentTestSession.questions.length} вопросов`,
-        });
-      }
     }
+
+    toast({
+      title: "Вопрос пропущен",
+      description: "Вы сможете вернуться к нему в конце теста",
+    });
+  };
+
+  const reviewSkippedQuestions = () => {
+    if (!currentTestSession || currentTestSession.skippedQuestions.length === 0) return;
+    
+    const firstSkippedId = currentTestSession.skippedQuestions[0];
+    const firstSkippedIndex = currentTestSession.questions.findIndex(q => q.id === firstSkippedId);
+    
+    setCurrentTestSession({
+      ...currentTestSession,
+      currentQuestion: firstSkippedIndex
+    });
+    
+    setReviewingSkipped(true);
+    setTestComplete(false);
+    setTestInProgress(true);
+  };
+
+  const finishTestWithSkipped = () => {
+    if (!currentTestSession) return;
+    submitTest(currentTestSession.testId, currentTestSession.answers);
   };
 
   const submitTest = async (testId: string, answers: Record<string, string>) => {
     try {
       setIsLoading(true);
       
-      // Обновляем токен перед отправкой результатов
       try {
         await refreshToken();
       } catch (refreshError) {
@@ -171,8 +245,8 @@ export const useCognitiveTest = () => {
       setTestResults(fullResults);
       setTestInProgress(false);
       setTestComplete(true);
+      setReviewingSkipped(false);
       
-      // Более информативное уведомление
       let statusText = "удовлетворительно";
       if (result.score >= 80) statusText = "отлично";
       else if (result.score >= 60) statusText = "хорошо";
@@ -188,7 +262,6 @@ export const useCognitiveTest = () => {
     } catch (error) {
       console.error("Не удалось отправить результаты теста:", error);
       
-      // Обработка различных ошибок
       let errorMessage = "Не удалось отправить результаты теста";
       
       if (error.response?.status === 401) {
@@ -212,6 +285,7 @@ export const useCognitiveTest = () => {
     setActiveTestId(null);
     setTestInProgress(false);
     setTestComplete(false);
+    setReviewingSkipped(false);
     setCurrentTestSession(null);
     setTestResults(null);
   };
@@ -232,11 +306,15 @@ export const useCognitiveTest = () => {
     activeTestId,
     testInProgress,
     testComplete,
+    reviewingSkipped,
     currentTestSession,
     testResults,
     isLoading,
     startTest,
     handleAnswer,
+    handleSkipQuestion,
+    reviewSkippedQuestions,
+    finishTestWithSkipped,
     closeTest,
     handleTimeUp
   };
