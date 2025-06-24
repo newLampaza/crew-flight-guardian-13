@@ -228,13 +228,13 @@ export const TestResults: React.FC<TestResultsProps> = ({
             )}
           </div>
         </CardContent>
-        {onClose && (
-          <CardFooter className="flex justify-end">
+        <CardFooter className="flex justify-end">
+          {onClose && (
             <Button onClick={onClose}>
               Закрыть
             </Button>
-          </CardFooter>
-        )}
+          )}
+        </CardFooter>
       </Card>
     </div>
   );

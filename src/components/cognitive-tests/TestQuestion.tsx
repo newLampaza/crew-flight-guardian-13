@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -211,7 +212,7 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4 mb-4">
               {question.images?.map((img, index) => (
-                <div key={index} className="border-2 border-border p-2 rounded bg-card">
+                <div key={index} className="border p-2 rounded">
                   <img 
                     src={getImageSource(img)} 
                     alt={`Изображение ${index + 1}`} 
@@ -242,13 +243,13 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
           <div className="space-y-4">
             {question.grid && (
               <div className="mb-4 flex justify-center">
-                <div className="inline-block border-2 border-border rounded p-2 bg-card">
+                <div className="inline-block border-2 border-gray-300 rounded p-2 bg-gray-50">
                   {question.grid.map((row, rowIndex) => (
                     <div key={rowIndex} className="flex">
                       {row.map((cell, cellIndex) => (
                         <div
                           key={`${rowIndex}-${cellIndex}`}
-                          className="w-8 h-8 flex items-center justify-center text-lg font-mono border border-border bg-background text-foreground"
+                          className="w-8 h-8 flex items-center justify-center text-lg font-mono border border-gray-200"
                         >
                           {cell}
                         </div>
@@ -278,13 +279,13 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
         return (
           <div className="space-y-4">
             {question.stimulus && (
-              <div className="mb-4 p-4 bg-muted rounded-lg">
-                <p className="text-center mb-3 font-medium text-foreground">Последовательность:</p>
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="text-center mb-3 font-medium">Последовательность:</p>
                 <div className="flex items-center justify-center gap-3 flex-wrap">
                   {Array.isArray(question.stimulus) && question.stimulus.map((item, index) => (
                     <div
                       key={index}
-                      className="w-12 h-12 flex items-center justify-center text-xl font-bold bg-background border-2 border-primary rounded-lg text-foreground"
+                      className="w-12 h-12 flex items-center justify-center text-xl font-bold bg-white border-2 border-primary rounded-lg"
                     >
                       {item}
                     </div>
@@ -353,24 +354,24 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
           <div className="text-center py-4">
             {!showAnswer ? (
               <div className="flex flex-col items-center justify-center">
-                <p className="text-xl font-bold mb-4 text-foreground">Запомните последовательность:</p>
+                <p className="text-xl font-bold mb-4">Запомните последовательность:</p>
                 <div className="flex flex-wrap justify-center gap-2 mb-4">
                   {Array.isArray(question.stimulus) && question.stimulus.map((item, index) => (
-                    <div key={index} className="p-3 border-2 border-primary rounded-md bg-primary/10 font-medium text-foreground">
+                    <div key={index} className="p-3 border-2 border-primary rounded-md bg-primary/10 font-medium">
                       {item}
                     </div>
                   ))}
                 </div>
-                <p className="text-lg text-foreground">Осталось {timeLeft} секунд</p>
+                <p className="text-lg">Осталось {timeLeft} секунд</p>
               </div>
             ) : (
               <div className="flex flex-col items-center">
-                <p className="text-lg mb-4 text-foreground">Восстановите правильную последовательность:</p>
+                <p className="text-lg mb-4">Восстановите правильную последовательность:</p>
                 <DragDropContext onDragEnd={handleDragEnd}>
                   <Droppable droppableId="sequence" direction="horizontal">
                     {(provided) => (
                       <div 
-                        className="flex flex-wrap justify-center gap-2 mb-4 p-4 min-h-16 border-2 border-dashed border-border rounded-lg bg-muted"
+                        className="flex flex-wrap justify-center gap-2 mb-4 p-4 min-h-16 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50"
                         {...provided.droppableProps}
                         ref={provided.innerRef}
                       >
@@ -381,8 +382,8 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                                className={`p-3 border-2 rounded-md bg-background cursor-move font-medium transition-all text-foreground
-                                  ${snapshot.isDragging ? 'border-primary shadow-lg rotate-1 scale-105' : 'border-border hover:border-border/80'}`}
+                                className={`p-3 border-2 rounded-md bg-white cursor-move font-medium transition-all
+                                  ${snapshot.isDragging ? 'border-primary shadow-lg rotate-1 scale-105' : 'border-gray-300 hover:border-gray-400'}`}
                                 style={{
                                   ...provided.draggableProps.style,
                                 }}
@@ -397,7 +398,7 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
                     )}
                   </Droppable>
                 </DragDropContext>
-                <p className="text-sm text-muted-foreground text-center">Перетаскивайте элементы, чтобы расположить их в правильном порядке</p>
+                <p className="text-sm text-muted-foreground">Перетаскивайте элементы, чтобы расположить их в правильном порядке</p>
               </div>
             )}
           </div>
@@ -408,15 +409,15 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
           <div className="space-y-4">
             {!showAnswer ? (
               <div className="text-center py-8">
-                <p className="text-xl font-bold mb-4 text-foreground">Запомните слова:</p>
+                <p className="text-xl font-bold mb-4">Запомните слова:</p>
                 <div className="flex flex-wrap justify-center gap-2 mb-4">
                   {Array.isArray(question.stimulus) && question.stimulus.map((word, index) => (
-                    <div key={index} className="p-3 border-2 border-primary rounded bg-primary/10 font-medium text-foreground">
+                    <div key={index} className="p-3 border-2 border-primary rounded bg-primary/10 font-medium">
                       {word}
                     </div>
                   ))}
                 </div>
-                <p className="text-lg text-foreground">Осталось {timeLeft} секунд</p>
+                <p className="text-lg">Осталось {timeLeft} секунд</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
@@ -440,7 +441,7 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
           <div className="space-y-4">
             {!showAnswer ? (
               <div className="text-center py-4">
-                <p className="text-xl font-bold mb-4 text-foreground">Запомните изображения:</p>
+                <p className="text-xl font-bold mb-4">Запомните изображения:</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
                   {Array.isArray(question.stimulus) && question.stimulus.map((img, index) => (
                     <div key={index} className="border-2 border-primary p-2 rounded bg-primary/5">
@@ -453,14 +454,14 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
                     </div>
                   ))}
                 </div>
-                <p className="text-lg text-foreground">Осталось {timeLeft} секунд</p>
+                <p className="text-lg">Осталось {timeLeft} секунд</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 {question.options?.map((img, index) => (
                   <div 
                     key={index} 
-                    className={`border-2 p-1 cursor-pointer rounded ${selectedOptions.includes(img) ? 'border-primary bg-primary/10' : 'border-border hover:border-border/80'}`}
+                    className={`border-2 p-1 cursor-pointer rounded ${selectedOptions.includes(img) ? 'border-primary bg-primary/10' : 'border-gray-200 hover:border-gray-300'}`}
                     onClick={() => handleMultipleSelect(img)}
                   >
                     <img 
@@ -481,28 +482,28 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
           <div className="space-y-4">
             {!showAnswer ? (
               <div className="text-center py-4">
-                <p className="text-xl font-bold mb-4 text-foreground">Запомните соответствия:</p>
+                <p className="text-xl font-bold mb-4">Запомните соответствия:</p>
                 <div className="grid grid-cols-1 gap-3 max-w-md mx-auto">
                   {question.options?.map((option, index) => {
                     const answer = question.answer_options?.[index];
                     return (
                       <div key={index} className="flex items-center justify-between border-2 border-primary p-3 rounded bg-primary/5">
-                        <span className="font-medium text-foreground">{option}</span>
+                        <span className="font-medium">{option}</span>
                         <span className="text-primary text-xl">→</span>
-                        <span className="font-medium text-foreground">{answer}</span>
+                        <span className="font-medium">{answer}</span>
                       </div>
                     );
                   })}
                 </div>
-                <p className="text-lg mt-4 text-foreground">Осталось {timeLeft} секунд</p>
+                <p className="text-lg mt-4">Осталось {timeLeft} секунд</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
                 {question.options?.map((option, index) => (
-                  <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 border p-3 rounded border-border bg-card">
-                    <Label className="min-w-32 font-medium text-foreground">{option}</Label>
+                  <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 border p-3 rounded">
+                    <Label className="min-w-32 font-medium">{option}</Label>
                     <select
-                      className="flex-1 border-2 border-border p-2 rounded-md bg-background text-foreground"
+                      className="flex-1 border-2 border-gray-300 p-2 rounded-md"
                       value={pairsSelection[option] || ""}
                       onChange={(e) => handlePairSelection(option, e.target.value)}
                     >
@@ -523,14 +524,14 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
           <div className="space-y-4">
             {!showAnswer ? (
               <div className="text-center py-4">
-                <p className="text-xl font-bold mb-4 text-foreground">Запомните матрицу:</p>
-                <div className="inline-block border-2 border-primary rounded overflow-hidden bg-background">
+                <p className="text-xl font-bold mb-4">Запомните матрицу:</p>
+                <div className="inline-block border-2 border-primary rounded overflow-hidden bg-white">
                   {question.matrix?.map((row, rowIndex) => (
                     <div key={rowIndex} className="flex">
                       {row.map((cell, cellIndex) => (
                         <div
                           key={`${rowIndex}-${cellIndex}`}
-                          className="border border-border p-4 text-center min-w-12 font-medium bg-primary/5 text-foreground"
+                          className="border border-gray-300 p-4 text-center min-w-12 font-medium bg-primary/5"
                         >
                           {cell}
                         </div>
@@ -538,12 +539,12 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
                     </div>
                   ))}
                 </div>
-                <p className="text-lg mt-4 text-foreground">Осталось {timeLeft} секунд</p>
+                <p className="text-lg mt-4">Осталось {timeLeft} секунд</p>
               </div>
             ) : (
               <>
                 {question.question_text && (
-                  <p className="text-lg text-foreground">{question.question_text}</p>
+                  <p className="text-lg">{question.question_text}</p>
                 )}
                 <div className="grid grid-cols-2 gap-2 mt-4">
                   {question.options?.map((option, index) => (
@@ -559,82 +560,6 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
                 </div>
               </>
             )}
-          </div>
-        );
-
-      case 'memory':
-        return (
-          <div className="space-y-4">
-            {!showAnswer ? (
-              <div className="text-center py-4">
-                <p className="text-xl font-bold mb-4 text-foreground">Запомните последовательность чисел:</p>
-                <div className="flex justify-center gap-2 mb-4 flex-wrap">
-                  {Array.isArray(question.stimulus) && question.stimulus.map((item, index) => (
-                    <div 
-                      key={index}
-                      className="w-14 h-14 flex items-center justify-center text-2xl font-bold bg-primary text-primary-foreground rounded-lg border-2 border-primary"
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-lg mt-4 text-foreground">Осталось {timeLeft} секунд</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="text-lg text-center mb-4 text-foreground">Выберите правильную последовательность:</p>
-                <div className="grid grid-cols-1 gap-3">
-                  {question.options?.map((option, index) => (
-                    <Button
-                      key={index}
-                      variant={selectedOption === option ? "default" : "outline"}
-                      className="justify-start h-auto py-3 text-lg"
-                      onClick={() => setSelectedOption(option)}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold">{index + 1}.</span>
-                        <span>{option}</span>
-                      </div>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        );
-
-      case 'matrix_selection':
-        return (
-          <div className="space-y-4">
-            <p className="text-lg mb-2 font-medium text-foreground">{question.question_text}</p>
-            
-            <div className="flex justify-center">
-              <div className="inline-block border-2 border-border rounded overflow-hidden bg-background">
-                {question.grid?.map((row, rowIndex) => (
-                  <div key={rowIndex} className="flex">
-                    {row.map((cell, colIndex) => {
-                      const cellId = `${rowIndex}-${colIndex}`;
-                      const isSelected = selectedCells.includes(cellId);
-                      
-                      return (
-                        <div
-                          key={`${rowIndex}-${colIndex}`}
-                          className={`border border-border p-4 text-center min-w-12 cursor-pointer transition-all font-medium text-foreground
-                            ${isSelected ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}
-                          onClick={() => handleCellClick(rowIndex, colIndex)}
-                        >
-                          {cell}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <p className="text-sm text-muted-foreground text-center">
-              Нажмите на элементы, чтобы выбрать их. Нажмите повторно, чтобы отменить выбор.
-            </p>
           </div>
         );
 
@@ -681,6 +606,82 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
                 </div>
               )}
             </div>
+          </div>
+        );
+
+      case 'memory':
+        return (
+          <div className="space-y-4">
+            {!showAnswer ? (
+              <div className="text-center py-4">
+                <p className="text-xl font-bold mb-4">Запомните последовательность:</p>
+                <div className="flex justify-center gap-2 mb-4 flex-wrap">
+                  {Array.isArray(question.stimulus) && question.stimulus.map((item, index) => (
+                    <div 
+                      key={index}
+                      className="w-14 h-14 flex items-center justify-center text-2xl font-bold bg-primary text-primary-foreground rounded-lg border-2 border-primary"
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-lg mt-4">Осталось {timeLeft} секунд</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-lg text-center mb-4">Выберите правильную последовательность:</p>
+                <div className="grid grid-cols-1 gap-3">
+                  {question.options?.map((option, index) => (
+                    <Button
+                      key={index}
+                      variant={selectedOption === option ? "default" : "outline"}
+                      className="justify-start h-auto py-3 text-lg"
+                      onClick={() => setSelectedOption(option)}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold">{index + 1}.</span>
+                        <span>{option}</span>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'matrix_selection':
+        return (
+          <div className="space-y-4">
+            <p className="text-lg mb-2 font-medium">{question.question_text}</p>
+            
+            <div className="flex justify-center">
+              <div className="inline-block border-2 border-gray-300 rounded overflow-hidden bg-white">
+                {question.grid?.map((row, rowIndex) => (
+                  <div key={rowIndex} className="flex">
+                    {row.map((cell, colIndex) => {
+                      const cellId = `${rowIndex}-${colIndex}`;
+                      const isSelected = selectedCells.includes(cellId);
+                      
+                      return (
+                        <div
+                          key={`${rowIndex}-${colIndex}`}
+                          className={`border border-gray-300 p-4 text-center min-w-12 cursor-pointer transition-all font-medium
+                            ${isSelected ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-gray-100'}`}
+                          onClick={() => handleCellClick(rowIndex, colIndex)}
+                        >
+                          {cell}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <p className="text-sm text-muted-foreground text-center">
+              Нажмите на элементы, чтобы выбрать их. Нажмите повторно, чтобы отменить выбор.
+            </p>
           </div>
         );
 
@@ -780,7 +781,7 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
 
       default:
         return (
-          <div className="p-8 text-center bg-muted rounded-lg">
+          <div className="p-8 text-center bg-gray-50 rounded-lg">
             <p className="text-lg text-muted-foreground">Этот тип вопроса находится в разработке</p>
             <p className="text-sm text-muted-foreground mt-2">Тип: {question.type}</p>
           </div>
@@ -813,7 +814,7 @@ const TestQuestionComponent: React.FC<TestQuestionProps> = ({ question, onAnswer
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardContent className="pt-6">
-        <h2 className="text-xl font-semibold mb-6 text-foreground">{question.question}</h2>
+        <h2 className="text-xl font-semibold mb-6">{question.question}</h2>
         
         {timeLeft !== null ? (
           renderQuestionContent()

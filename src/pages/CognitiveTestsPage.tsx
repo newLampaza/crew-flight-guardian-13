@@ -11,7 +11,6 @@ import { useAuth } from "@/context/AuthContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { useSearchParams } from "react-router-dom";
 
 const testConfig = [
   {
@@ -48,14 +47,13 @@ const CognitiveTestsPage = () => {
   const isMobile = useIsMobile();
   const { isAuthenticated, refreshToken } = useAuth();
   const [activeTab, setActiveTab] = useState("available");
-  const [searchParams, setSearchParams] = useSearchParams();
   
   useEffect(() => {
     if (isAuthenticated) {
       refreshToken().catch(console.error);
     }
   }, [isAuthenticated, refreshToken]);
-
+  
   const {
     activeTestId,
     testInProgress,
@@ -91,27 +89,13 @@ const CognitiveTestsPage = () => {
     }
   }, [testComplete, testLoading, refreshHistory]);
 
-  // Автоматический запуск теста из URL параметра
-  useEffect(() => {
-    const startParam = searchParams.get('start');
-    if (startParam && isAuthenticated && !activeTestId) {
-      const testExists = testConfig.find(t => t.id === startParam);
-      if (testExists) {
-        handleStartTest(startParam);
-        // Очищаем параметр из URL
-        setSearchParams({});
-      }
-    }
-  }, [searchParams, isAuthenticated, activeTestId]);
-
   const activeTestConfig = testConfig.find(t => t.id === activeTestId);
 
-  const handleStartTest = async (testId?: string) => {
-    const targetTestId = testId || activeTestId;
-    if (targetTestId) {
-      const inCooldown = await checkTestCooldown(targetTestId);
+  const handleStartTest = async () => {
+    if (activeTestId) {
+      const inCooldown = await checkTestCooldown(activeTestId);
       if (!inCooldown) {
-        startTest(targetTestId);
+        startTest(activeTestId);
       }
     }
   };
@@ -301,7 +285,7 @@ const CognitiveTestsPage = () => {
         testResults={testResults}
         isLoading={testLoading}
         onClose={handleCloseTest}
-        onStart={() => handleStartTest()}
+        onStart={handleStartTest}
         onAnswer={handleAnswer}
         onSkip={handleSkipQuestion}
         onReviewSkipped={reviewSkippedQuestions}
