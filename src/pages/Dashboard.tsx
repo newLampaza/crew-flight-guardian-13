@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
@@ -344,7 +343,7 @@ const Dashboard = () => {
       
       {/* Status Checks */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        <FlightPermissionWidget />
+        <FlightPermissionWidget fatigueLevel={currentFatigueLevel} />
         <CognitiveTestsWidget />
         <MedicalCheckWidget />
         
