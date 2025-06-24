@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import AdminHome from './AdminHome';
@@ -11,8 +12,6 @@ import {
   PlaneTakeoff,
   Users,
   Clock,
-  Brain,
-  Stethoscope,
   Battery,
   AlertTriangle,
   Activity,
@@ -24,20 +23,20 @@ import { useDashboardCrew } from "@/hooks/useDashboardCrew";
 import { useDashboardCurrentFlight } from "@/hooks/useDashboardCurrentFlight";
 import { useFatigueAnalysis } from "@/hooks/useFatigueAnalysis";
 import { useFlights } from "@/hooks/useFlights";
+import { CognitiveTestsWidget } from "@/components/dashboard/CognitiveTestsWidget";
+import { FlightPermissionWidget } from "@/components/dashboard/FlightPermissionWidget";
+import { MedicalCheckWidget } from "@/components/dashboard/MedicalCheckWidget";
 
 const Dashboard = () => {
   const { user, isAdmin, isMedical, isPilot } = useAuth();
   
-  // Получаем реальные данные с бэка
   const { data: flightStats, isLoading: isStatsLoading } = useDashboardFlightStats();
   const { data: crewData, isLoading: isCrewLoading } = useDashboardCrew();
   const { data: currentFlight, isLoading: isFlightLoading } = useDashboardCurrentFlight();
   const { data: flights = [] } = useFlights();
   
-  // Добавляем данные анализа усталости
   const { historyData, loadHistory } = useFatigueAnalysis();
 
-  // Загружаем историю анализов при монтировании компонента
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
@@ -66,13 +65,9 @@ const Dashboard = () => {
     }
   };
 
-  // Функция для получения строки даты в формате YYYY-MM-DD
   const getDayString = (date: Date) => date.toISOString().slice(0, 10);
-
-  // Определяем текущую дату
   const todayStr = getDayString(new Date());
 
-  // Анализы за сегодня типа 'realtime'
   const todaysRealtime = historyData.filter(
     h =>
       h.analysis_type === "realtime" &&
@@ -80,7 +75,6 @@ const Dashboard = () => {
       getDayString(new Date(h.analysis_date)) === todayStr
   );
 
-  // Анализы по рейсам за сегодня
   const todaysFlights = flights.filter(f => f.arrival_time && getDayString(new Date(f.arrival_time)) === todayStr);
 
   const flightFatigueAnalyses = todaysFlights
@@ -94,20 +88,17 @@ const Dashboard = () => {
     })
     .filter(Boolean);
 
-  // Объединяем все сегодняшние анализы
   const todayAllAnalyses = [
     ...todaysRealtime,
     ...flightFatigueAnalyses
   ];
 
-  // Вычисляем текущий уровень усталости как среднее за сегодня (как в FatigueStatusCard)
   const currentFatigueLevel = todayAllAnalyses.length > 0
     ? Math.round(
         todayAllAnalyses.reduce((acc, h) => acc + ((h.neural_network_score || 0) * 100), 0) / todayAllAnalyses.length
       )
-    : 65; // Значение по умолчанию
+    : 65;
 
-  // Функции для анализа данных усталости
   const getFatigueStatus = (level) => {
     if (level >= 70) {
       return {
@@ -136,7 +127,6 @@ const Dashboard = () => {
   const getWeeklyTrend = () => {
     if (historyData.length < 2) return { change: 0, direction: 'stable' };
     
-    // Получаем данные за последнюю неделю
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     
@@ -301,35 +291,19 @@ const Dashboard = () => {
                   </div>
                   <p className="text-lg mb-3 text-blue-800 dark:text-blue-200 font-medium">{currentFlight.route}</p>
                   
-                  {currentFlight.isActive ? (
-                    <div className="space-y-2">
+                  <div className="space-y-2">
+                    <p className="text-base text-blue-700 dark:text-blue-300">
+                      Отправление: {formatFlightTime(currentFlight.departure_time)}
+                    </p>
+                    {currentFlight.arrival_time && (
                       <p className="text-base text-blue-700 dark:text-blue-300">
-                        Отправление: {formatFlightTime(currentFlight.departure_time)}
+                        Прибытие: {formatFlightTime(currentFlight.arrival_time)}
                       </p>
-                      {currentFlight.arrival_time && (
-                        <p className="text-base text-blue-700 dark:text-blue-300">
-                          Прибытие: {formatFlightTime(currentFlight.arrival_time)}
-                        </p>
-                      )}
-                      <p className="text-base text-blue-700 dark:text-blue-300">
-                        Продолжительность: {currentFlight.duration} мин
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <p className="text-base text-blue-700 dark:text-blue-300">
-                        Отправление: {formatFlightTime(currentFlight.departure_time)}
-                      </p>
-                      {currentFlight.arrival_time && (
-                        <p className="text-base text-blue-700 dark:text-blue-300">
-                          Прибытие: {formatFlightTime(currentFlight.arrival_time)}
-                        </p>
-                      )}
-                      <p className="text-base text-blue-700 dark:text-blue-300">
-                        Продолжительность: {currentFlight.duration} мин
-                      </p>
-                    </div>
-                  )}
+                    )}
+                    <p className="text-base text-blue-700 dark:text-blue-300">
+                      Продолжительность: {currentFlight.duration} мин
+                    </p>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -341,147 +315,11 @@ const Dashboard = () => {
       
       {/* Status Checks */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        {/* Flight Permission Status */}
-        <Card className="hover-card bg-gradient-to-br from-primary/5 to-primary/10">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-2xl flex items-center gap-3">
-              <PlaneTakeoff className="h-6 w-6 text-primary" />
-              Допуск к полету
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col items-center py-2">
-              <div className="relative w-32 h-32 mb-4">
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke="currentColor"
-                    strokeWidth="16"
-                    fill="none"
-                    className="text-muted/20"
-                  />
-                  <circle
-                    cx="64"
-                    cy="64"
-                    r="56"
-                    stroke="currentColor"
-                    strokeWidth="16"
-                    fill="none"
-                    strokeDasharray={351.8583}
-                    strokeDashoffset={351.8583 - (351.8583 * 70) / 100}
-                    className="text-amber-500 transition-all duration-1000"
-                  />
-                </svg>
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-                  <span className="text-3xl font-bold">70%</span>
-                  <span className="text-xs block text-muted-foreground">Готовность</span>
-                </div>
-              </div>
-
-              <Badge className="bg-amber-500 text-white mb-3 py-1 px-3 text-sm">
-                Условный допуск
-              </Badge>
-
-              <div className="w-full bg-amber-50 dark:bg-amber-500/10 p-3 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
-                  <div className="text-sm">
-                    <p className="font-medium">Требуются дополнительные проверки</p>
-                    <p className="text-muted-foreground">Пройдите повторный тест памяти и когнитивной гибкости</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <FlightPermissionWidget />
+        <CognitiveTestsWidget />
+        <MedicalCheckWidget />
         
-        {/* Cognitive Tests */}
-        <Card className="hover-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-2xl flex items-center gap-3">
-              <Brain className="h-6 w-6 text-primary" />
-              Когнитивные тесты
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-good"></span>
-                  <span className="text-base">Тест внимания</span>
-                </div>
-                <span className="font-bold text-status-good text-base">Пройден</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-good"></span>
-                  <span className="text-base">Тест реакции</span>
-                </div>
-                <span className="font-bold text-status-good text-base">Пройден</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-warning"></span>
-                  <span className="text-base">Тест памяти</span>
-                </div>
-                <span className="text-status-warning text-base font-bold text-right">Требуется повторный тест</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-danger"></span>
-                  <span className="text-base">Тест когнитивной гибкости</span>
-                </div>
-                <span className="font-bold text-status-danger text-base text-right">Не пройден</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Medical Check */}
-        <Card className="hover-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-2xl flex items-center gap-3">
-              <Stethoscope className="h-6 w-6 text-primary" />
-              Медицинский контроль
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-good"></span>
-                  <span className="text-base">Допуск к полетам</span>
-                </div>
-                <span className="font-bold text-status-good text-base">Разрешен</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-good"></span>
-                  <span className="text-base">Дата медосмотра</span>
-                </div>
-                <span className="font-bold text-base">10.04.2025</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-good"></span>
-                  <span className="text-base">Следующий осмотр</span>
-                </div>
-                <span className="font-bold text-base">10.10.2025</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <span className="status-indicator status-good"></span>
-                  <span className="text-base">Врач</span>
-                </div>
-                <span className="font-bold text-base">Петров А.И.</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Fatigue Analysis - Updated to use same logic as FatigueStatusCard */}
+        {/* Fatigue Analysis */}
         <Card className="hover-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-2xl flex items-center gap-3">

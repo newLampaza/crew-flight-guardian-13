@@ -31,7 +31,6 @@ export const useTestHistory = () => {
     } catch (error) {
       console.error("Не удалось загрузить историю тестов:", error);
       
-      // Более информативное сообщение об ошибке
       let errorMessage = "Не удалось загрузить историю тестов";
       if (error.response?.status === 401) {
         errorMessage = "Ошибка авторизации. Пожалуйста, войдите в систему снова";
@@ -64,7 +63,6 @@ export const useTestHistory = () => {
     if (lastTest.score >= 85) status = "passed";
     else if (lastTest.score >= 70) status = "warning";
     
-    // Проверяем, находится ли тест в перезарядке
     let inCooldown = false;
     let cooldownEnd = null;
     
@@ -112,7 +110,6 @@ export const useTestHistory = () => {
     try {
       setIsLoading(true);
       
-      // Ensure testHistory is an array before filtering
       if (!Array.isArray(testHistory)) {
         toast({
           title: "Ошибка",

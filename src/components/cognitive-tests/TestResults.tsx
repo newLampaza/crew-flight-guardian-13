@@ -1,7 +1,5 @@
-
 import React from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BadgeCheck, AlertCircle, Clock, Timer } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -228,13 +226,6 @@ export const TestResults: React.FC<TestResultsProps> = ({
             )}
           </div>
         </CardContent>
-        <CardFooter className="flex justify-end">
-          {onClose && (
-            <Button onClick={onClose}>
-              Закрыть
-            </Button>
-          )}
-        </CardFooter>
       </Card>
     </div>
   );
