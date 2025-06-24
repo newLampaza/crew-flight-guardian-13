@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BadgeCheck, AlertCircle, Clock, Brain, Calendar, Timer } from "lucide-react";
+import { BadgeCheck, AlertCircle, Clock, Timer } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -136,9 +137,8 @@ export const TestResults: React.FC<TestResultsProps> = ({
     <div className="space-y-4 animate-fade-in">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle>{getTestTypeName(result.test_type)}</CardTitle>
-          <CardDescription className="flex items-center">
-            <Calendar className="h-4 w-4 mr-1" /> {formatDate(result.test_date)}
+          <CardDescription className="flex items-center text-sm text-muted-foreground">
+            {formatDate(result.test_date)}
           </CardDescription>
         </CardHeader>
         <CardContent>
