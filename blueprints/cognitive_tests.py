@@ -620,3 +620,280 @@ def get_token_required():
     return get_token_required()
 
 # ... keep existing code (all routes) the same ...
+# Routes
+@cognitive_bp.route('/tests/start', methods=['POST'])
+def start_test():
+    token_required = get_token_required()
+    
+    @token_required
+    def _start_test(current_user):
+        try:
+            test_type = request.json.get('test_type')
+            if not test_type:
+                return jsonify({'error': 'Тип теста не указан'}), 400
+                
+            # Генерация вопросов для теста (увеличено до 10 вопросов)
+            questions = generate_test_questions(test_type, count=10)
+            
+            if not questions or len(questions) == 0:
+                return jsonify({'error': 'Не удалось создать вопросы для теста'}), 500
+                
+            # Создаем уникальный ID для тестовой сессии
+            test_id = str(uuid.uuid4())
+            
+            # Сохраняем сессию в памяти
+            test_sessions[test_id] = {
+                'employee_id': current_user['employee_id'],
+                'test_type': test_type,
+                'start_time': datetime.now().isoformat(),
+                'questions': questions,
+                'answers': {}
+            }
+            
+            # Возвращаем клиенту информацию о тесте
+            return jsonify({
+                'test_id': test_id,
+                'questions': questions,
+                'current_question': 0,
+                'time_limit': 300,  # 5 минут общий лимит
+                'total_questions': len(questions)
+            })
+        except Exception as e:
+            logger.error(f"Error starting test: {traceback.format_exc()}")
+            return jsonify({'error': str(e)}), 500
+            
+    return _start_test()
+
+@cognitive_bp.route('/tests/submit', methods=['POST'])
+def submit_test():
+    token_required = get_token_required()
+    
+    @token_required
+    def _submit_test(current_user):
+        try:
+            data = request.get_json()
+            test_id = data.get('test_id')
+            answers = data.get('answers', {})
+            
+            if not test_id or test_id not in test_sessions:
+                return jsonify({'error': 'Недействительный ID теста'}), 400
+                
+            test_session = test_sessions[test_id]
+            
+            if test_session['employee_id'] != current_user['employee_id']:
+                return jsonify({'error': 'Доступ запрещен'}), 403
+                
+            start_time = datetime.fromisoformat(test_session['start_time'])
+            end_time = datetime.now()
+            duration = int((end_time - start_time).total_seconds())
+            
+            # Расчет результатов теста
+            results = calculate_results(
+                test_session['questions'], 
+                answers, 
+                test_session['test_type'], 
+                duration
+            )
+            
+            # Устанавливаем период перезарядки теста (30 минут)
+            cooldown_end = end_time + timedelta(minutes=30)
+            cooldown_end_str = cooldown_end.isoformat()
+            # Сохраняем результаты в БД
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO CognitiveTests 
+                (employee_id, test_type, test_date, score, duration, details, cooldown_end)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                current_user['employee_id'],
+                test_session['test_type'],
+                end_time.isoformat(),
+                results['score'],
+                duration,
+                json.dumps(results),
+                cooldown_end_str
+            ))
+            conn.commit()
+            test_id_db = cursor.lastrowid
+            conn.close()
+            
+            # Очищаем сессию из памяти
+            del test_sessions[test_id]
+            
+            # Возвращаем клиенту краткие результаты
+            return jsonify({
+                'score': results['score'],
+                'test_id': test_id_db,
+                'total_questions': results['total_questions'],
+                'correct_answers': results['correct_answers'],
+                'cooldown_end': cooldown_end_str
+            })
+        except Exception as e:
+            logger.error(f"Error submitting test: {traceback.format_exc()}")
+            return jsonify({'error': str(e)}), 500
+            
+    return _submit_test()
+
+@cognitive_bp.route('/tests/results/<int:test_id>', methods=['GET'])
+def get_test_results(test_id):
+    token_required = get_token_required()
+    
+    @token_required
+    def _get_test_results(current_user, test_id):
+        conn = None
+        try:
+            conn = get_db_connection()
+            test = conn.execute('''
+                SELECT * FROM CognitiveTests 
+                WHERE test_id = ? AND employee_id = ?
+            ''', (test_id, current_user['employee_id'])).fetchone()
+            
+            if not test:
+                return jsonify({'error': 'Тест не найден'}), 404
+                
+            # Преобразуем детали теста из JSON в словарь
+            details = json.loads(test['details'])
+            
+            result = {
+                'test_id': test['test_id'],
+                'test_date': test['test_date'],
+                'test_type': test['test_type'],
+                'score': test['score'],
+                'duration': test['duration'],
+                'details': details,
+                'mistakes': details.get('mistakes', []),
+                'cooldown_end': test['cooldown_end']
+            }
+            
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Error getting test results: {str(e)}")
+            return jsonify({"error": str(e)}), 500
+        finally:
+            if conn:
+                conn.close()
+                
+    return _get_test_results(test_id)
+
+@cognitive_bp.route('/cognitive-tests', methods=['GET'])
+def get_cognitive_tests():
+    token_required = get_token_required()
+    
+    @token_required
+    def _get_cognitive_tests(current_user):
+        conn = None
+        try:
+            conn = get_db_connection()
+            tests = conn.execute('''
+                SELECT test_id, test_type, test_date, score, 
+                       duration, details, cooldown_end
+                FROM CognitiveTests 
+                WHERE employee_id = ? 
+                ORDER BY test_date DESC
+            ''', (current_user['employee_id'],)).fetchall()
+            
+            return jsonify([dict(test) for test in tests])
+        except Exception as e:
+            logger.error(f"Error getting cognitive tests: {str(e)}")
+            return jsonify({"error": str(e)}), 500
+        finally:
+            if conn:
+                conn.close()
+                
+    return _get_cognitive_tests()
+
+@cognitive_bp.route('/tests/cooldown/<string:test_type>', methods=['GET'])
+@cognitive_bp.route('/cognitive-tests/cooldown/<string:test_type>', methods=['GET'])
+def check_test_cooldown(test_type):
+    token_required = get_token_required()
+    
+    @token_required
+    def _check_test_cooldown(current_user):
+        """Проверка времени перезарядки теста"""
+        conn = get_db_connection()
+        try:
+            last_test = conn.execute('''
+                SELECT test_date 
+                FROM CognitiveTests 
+                WHERE employee_id = ? 
+                  AND test_type = ?
+                ORDER BY test_date DESC 
+                LIMIT 1
+            ''', (current_user['employee_id'], test_type)).fetchone()
+            
+            if not last_test:
+                return jsonify({'in_cooldown': False})
+                
+            # Проверяем прошло ли достаточно времени (например, 10 минут для тестирования)
+            last_time = datetime.fromisoformat(last_test['test_date'])
+            cooldown_seconds = 600  # 10 минут
+            now = datetime.now()
+            
+            if (now - last_time).total_seconds() < cooldown_seconds:
+                cooldown_end = last_time + timedelta(seconds=cooldown_seconds)
+                return jsonify({
+                    'in_cooldown': True,
+                    'cooldown_end': cooldown_end.isoformat()
+                    })
+            
+            return jsonify({'in_cooldown': False})
+            
+        except Exception as e:
+            logger.error(f"Error in test cooldown check: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+        finally:
+            conn.close()
+            
+    return _check_test_cooldown()
+
+@cognitive_bp.route('/cognitive-tests/<int:test_id>/results', methods=['GET'])
+def get_test_details(test_id):
+    token_required = get_token_required()
+    
+    @token_required
+    def _get_test_details(current_user):
+        """Получение деталей теста и ошибок"""
+        conn = get_db_connection()
+        try:
+            # Проверка принадлежности теста пользователю
+            test = conn.execute('''
+                SELECT * FROM CognitiveTests
+                WHERE test_id = ? 
+                AND employee_id = ?
+            ''', (test_id, current_user['employee_id'])).fetchone()
+
+            if not test:
+                return jsonify({"error": "Test not found"}), 404
+
+            # Получение ошибок
+            mistakes = conn.execute('''
+                SELECT 
+                    question,
+                    user_answer,
+                    correct_answer
+                FROM TestMistakes
+                WHERE test_id = ?
+                ''', (test_id,)).fetchall()
+
+            response_data = {
+                "test": dict(test),
+                "mistakes": [dict(mistake) for mistake in mistakes],
+                "analysis": {
+                    "total_questions": len(mistakes) + test['score']/100*(len(mistakes)/(1-test['score']/100)) if test['score'] < 100 else len(mistakes),
+                    "correct_answers": round(test['score']/100 * (len(mistakes)/(1-test['score']/100))) if test['score'] < 100 else "N/A"
+                }
+            }
+
+            return jsonify(response_data)
+
+        except sqlite3.Error as e:
+            logger.error(f"Database error: {str(e)}")
+            return jsonify({"error": "Database operation failed"}), 500
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            return jsonify({"error": "Internal server error"}), 500
+        finally:
+            conn.close()
+            
+    return _get_test_details()
