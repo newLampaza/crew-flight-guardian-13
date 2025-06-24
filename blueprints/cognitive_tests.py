@@ -1,4 +1,3 @@
-
 from flask import Blueprint, jsonify, request
 import sqlite3
 import logging
@@ -695,8 +694,8 @@ def submit_test():
                 duration
             )
             
-            # Устанавливаем период перезарядки теста (30 минут)
-            cooldown_end = end_time + timedelta(minutes=30)
+            # Устанавливаем период перезарядки теста (5 минут)
+            cooldown_end = end_time + timedelta(minutes=5)
             cooldown_end_str = cooldown_end.isoformat()
             # Сохраняем результаты в БД
             conn = get_db_connection()
@@ -825,9 +824,9 @@ def check_test_cooldown(test_type):
             if not last_test:
                 return jsonify({'in_cooldown': False})
                 
-            # Проверяем прошло ли достаточно времени (например, 10 минут для тестирования)
+            # Проверяем прошло ли достаточно времени (5 минут)
             last_time = datetime.fromisoformat(last_test['test_date'])
-            cooldown_seconds = 600  # 10 минут
+            cooldown_seconds = 300  # 5 минут
             now = datetime.now()
             
             if (now - last_time).total_seconds() < cooldown_seconds:
